@@ -29,4 +29,12 @@
     <EmbeddedResource Include="..\..\build\payload.zip" LogicalName="payload.zip" />
   </ItemGroup>
 
+  <!-- The brand typeface, built in (see src\Shared\BundledFonts.cs and tools\make_fonts.py). -->
+  <ItemGroup>
+    <Compile Include="..\Shared\BundledFonts.cs" Link="BundledFonts.cs" />
+    <EmbeddedResource Include="..\Glance\fonts\GlanceRoboto-Regular.ttf" LogicalName="GlanceRoboto-Regular.ttf" />
+    <EmbeddedResource Include="..\Glance\fonts\GlanceRoboto-Medium.ttf" LogicalName="GlanceRoboto-Medium.ttf" />
+    <EmbeddedResource Include="..\Glance\fonts\GlanceRoboto-Light.ttf" LogicalName="GlanceRoboto-Light.ttf" />
+  </ItemGroup>
+
 </Project>

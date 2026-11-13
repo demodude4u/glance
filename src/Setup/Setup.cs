@@ -112,7 +112,7 @@ internal static unsafe class Setup
         fixed (char* f = face) return CreateFontW(-D(pt * 96f / 72f), 0, 0, 0, weight, 0, 0, 0, 1, 0, 0, 5, 0, f);
     }
 
-    /// The brand face is Roboto; most office PCs don't have it, so fall back to the Windows UI face.
+    /// The brand face is built in; if it could not be loaded, fall back to the Windows UI face.
     static bool HasFont(string face)
     {
         nint f = Font(face, 10, 400), dc = GetDC(0), old = SelectObject(dc, f);
@@ -127,11 +127,14 @@ internal static unsafe class Setup
         nint inst = GetModuleHandleW(null);
         _s = GetDpiForSystem() / 96f;
         _bg = CreateSolidBrush(Ivory);
-        bool roboto = HasFont("Roboto");
-        _fTitle = Font(roboto && HasFont("Roboto Light") ? "Roboto Light" : "Segoe UI Light", 24, 300);
-        _fText = Font(roboto ? "Roboto" : "Segoe UI", 10.5f, 400);
-        _fSmall = Font(roboto ? "Roboto" : "Segoe UI", 9, 400);
-        _fButton = Font(roboto && HasFont("Roboto Medium") ? "Roboto Medium" : "Segoe UI Semibold", 10.5f, roboto ? 500 : 600);
+        Glance.BundledFonts.Load();
+        bool regular = HasFont(Glance.BundledFonts.Regular), medium = HasFont(Glance.BundledFonts.Medium);
+        _fTitle = Font(HasFont(Glance.BundledFonts.Light) ? Glance.BundledFonts.Light : "Segoe UI Light", 24, 300);
+        _fText = Font(regular ? Glance.BundledFonts.Regular : "Segoe UI", 10.5f, 400);
+        _fSmall = Font(regular ? Glance.BundledFonts.Regular : "Segoe UI", 9, 400);
+        _fButton = Font(medium ? Glance.BundledFonts.Medium : "Segoe UI Semibold", 10.5f, medium ? 500 : 600);
+        if (Environment.GetEnvironmentVariable("GLANCE_SETUP_REPORT") is string report)        // test hook: which faces are in use
+            File.WriteAllText(report, $"loaded={Glance.BundledFonts.Loaded} regular={regular} medium={medium} light={HasFont(Glance.BundledFonts.Light)}");
         _icon = LoadImageW(inst, (char*)32512, 1, D(44), D(44), 0);
 
         const uint style = 0x00C80000 | 0x00020000;        // caption + system menu + minimise box, fixed size

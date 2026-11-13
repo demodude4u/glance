@@ -226,6 +226,8 @@ def units_and_layflat_tests(exe, S, env, out):
     try:
         s.post(0x8000 + 4)
         a = s.shot("fix-units-open")
+        check("text is drawn with the built-in typeface", a["fonts"] == "Glance_Roboto/Glance_Roboto_Medium/Glance_Roboto_Light" and a["fontsLoaded"] == "3",
+              "%s, %s loaded" % (a["fonts"], a["fontsLoaded"]))
         rows = [tuple(float(v) for v in r.split(",")) for r in a["unitRows"].split(";") if r]
         check("Fix units opens a chooser with five units", a["fixUnits"] == "True" and len(rows) == 5, a["unitRows"])
         s.post_many([(WM_LBUTTONDOWN, 1, s.xy(*rows[0])), (WM_LBUTTONUP, 0, s.xy(*rows[0]))], gap=0.03)

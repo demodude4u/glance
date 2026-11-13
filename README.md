@@ -97,6 +97,21 @@ The STEP reader links against the official OpenCascade 8.0.1 Windows release, wh
 2. Unpack the first so that `build\deps\occt\opencascade-8.0.1-vc14-64\inc` exists.
 3. From the second, copy `jemalloc.dll` and `tbb12.dll` (the release ones) into `build\deps\runtime`.
 
+### What ships
+
+Everything Glance needs is inside the installer, so nothing else has to be on the PC:
+
+- **Typeface.** Roboto (Regular, Medium, Light) is built into `Glance.exe` and `Glance Setup.exe` and loaded for
+  that process only; nothing is installed into Windows. The files in `src\Glance\fonts` are Roboto 2.137 with the
+  family renamed to "Glance Roboto" (`tools\make_fonts.py`), so they never clash with an installed Roboto.
+- **Runtime libraries.** The Microsoft C++ runtime, OpenCascade, TBB and jemalloc sit next to the STEP reader.
+  `tools\check_deps.py` runs in every build and fails it if any shipped file needs a DLL that is neither shipped
+  nor part of Windows.
+- **Licence notices.** `licenses\` is copied into the install folder (`THIRD-PARTY-NOTICES.txt`, `Apache-2.0.txt`),
+  beside the LGPL texts for OpenCascade in `step\`.
+
+Not shipped: a software OpenGL fallback. Glance needs a graphics driver with OpenGL 3.3.
+
 ## How it is put together
 
 | | |

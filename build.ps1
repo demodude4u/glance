@@ -19,6 +19,9 @@ $occt = Get-ChildItem "$root\build\deps\occt" -Directory -ErrorAction SilentlyCo
 if (-not $occt) { throw "OpenCascade SDK not found under build\deps\occt (see README, Building)" }
 python "$root\tools\build_step.py" $occt.FullName "$root\build\deps\runtime" "$dist\step"
 if ($LASTEXITCODE -ne 0) { throw 'STEP reader build failed' }
+Copy-Item "$root\licenses\*" $dist                      # third-party notices travel with the program
+python "$root\tools\check_deps.py" $dist
+if ($LASTEXITCODE -ne 0) { throw 'A shipped file depends on something that is not shipped (see above)' }
 
 Get-ChildItem $dist -Recurse -File | Measure-Object Length -Sum |
     ForEach-Object { "Built $dist  ({0:N1} MB, {1} files)" -f ($_.Sum / 1MB), $_.Count }

@@ -8,6 +8,7 @@ internal sealed class Face
     public struct Glyph { public float U0, V0, U1, V1, W, Adv; }
     public readonly Dictionary<char, Glyph> Glyphs = new();
     public int Height;
+    public string Name = "";
     public const int Pad = 2;
 }
 
@@ -75,6 +76,7 @@ internal sealed unsafe class Ui
     /// <summary>Rasterise the three faces with GDI into one coverage bitmap (no OpenGL needed yet).</summary>
     public void BakeFonts(float scale)
     {
+        BundledFonts.Load();
         int aw = scale > 2.05f ? 2048 : 1024, ah = scale > 1.3f ? 1024 : 512;
         if (scale > 2.05f) ah = 2048;
         nint dc = Win32.CreateCompatibleDC(0);
@@ -85,9 +87,9 @@ internal sealed unsafe class Ui
         Win32.SetTextColor(dc, 0x00FFFFFF); Win32.SetBkMode(dc, 1);
 
         int x = 1, y = 1;
-        Body = Bake(dc, ["Roboto", "Segoe UI Variable Text", "Segoe UI"], 400, (int)MathF.Round(13.5f * scale), aw, ah, ref x, ref y);
-        Medium = Bake(dc, ["Roboto Medium", "Segoe UI Variable Text Semibold", "Segoe UI Semibold"], 500, (int)MathF.Round(13.5f * scale), aw, ah, ref x, ref y);
-        Title = Bake(dc, ["Roboto Light", "Segoe UI Variable Display Light", "Segoe UI Light"], 300, (int)MathF.Round(27f * scale), aw, ah, ref x, ref y);
+        Body = Bake(dc, [BundledFonts.Regular, "Roboto", "Segoe UI Variable Text", "Segoe UI"], 400, (int)MathF.Round(13.5f * scale), aw, ah, ref x, ref y);
+        Medium = Bake(dc, [BundledFonts.Medium, "Roboto Medium", "Segoe UI Variable Text Semibold", "Segoe UI Semibold"], 500, (int)MathF.Round(13.5f * scale), aw, ah, ref x, ref y);
+        Title = Bake(dc, [BundledFonts.Light, "Roboto Light", "Segoe UI Variable Display Light", "Segoe UI Light"], 300, (int)MathF.Round(27f * scale), aw, ah, ref x, ref y);
         Win32.GdiFlush();
 
         byte[] cov = new byte[aw * ah];
@@ -124,7 +126,8 @@ internal sealed unsafe class Ui
         }
         int* tm = stackalloc int[24];
         Win32.GetTextMetricsW(dc, tm);
-        var face = new Face { Height = tm[0] };
+        Win32.GetTextFaceW(dc, 64, got);
+        var face = new Face { Height = tm[0], Name = new string(got) };
         int pad = Face.Pad;
         foreach (char ch in Chars)
         {

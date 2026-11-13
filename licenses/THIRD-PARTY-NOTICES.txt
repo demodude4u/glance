@@ -1,0 +1,74 @@
+Glance includes the following third-party components. Each remains under its own licence.
+
+--------------------------------------------------------------------------------
+Roboto typeface, version 2.137
+Copyright 2011 Google Inc. All Rights Reserved.
+Licensed under the Apache License, Version 2.0 (see Apache-2.0.txt).
+
+Changes made for Glance: the font family names inside the Regular, Medium and Light
+files were changed to "Glance Roboto", "Glance Roboto Medium" and "Glance Roboto Light"
+so the built-in copy cannot be confused with a Roboto installed on the PC. The glyphs
+are unchanged. The fonts are built into Glance.exe and Glance Setup.exe.
+
+--------------------------------------------------------------------------------
+Open CASCADE Technology 8.0.1 (the TK*.dll files in the "step" folder)
+Copyright (c) OPEN CASCADE SAS
+Licensed under the GNU Lesser General Public License version 2.1 with an additional
+exception (see step\LICENSE_LGPL_21.txt and step\OCCT_LGPL_EXCEPTION.txt).
+The libraries are unmodified official release builds, used as separate DLLs, and can be
+replaced with other builds of the same version. Source code: https://dev.opencascade.org
+and https://github.com/Open-Cascade-SAS/OCCT
+
+--------------------------------------------------------------------------------
+oneAPI Threading Building Blocks (step\tbb12.dll)
+Copyright (c) Intel Corporation
+Licensed under the Apache License, Version 2.0 (see Apache-2.0.txt).
+
+--------------------------------------------------------------------------------
+jemalloc (step\jemalloc.dll)
+Copyright (C) 2002-present Jason Evans <jasone@canonware.com>. All rights reserved.
+Copyright (C) 2007-2012 Mozilla Foundation. All rights reserved.
+Copyright (C) 2009-present Facebook, Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are
+permitted provided that the following conditions are met:
+1. Redistributions of source code must retain the above copyright notice(s), this list
+   of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice(s), this
+   list of conditions and the following disclaimer in the documentation and/or other
+   materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER(S) ``AS IS'' AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
+THE COPYRIGHT HOLDER(S) BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
+TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+Microsoft Visual C++ runtime (step\msvcp140.dll, vcruntime140.dll, vcruntime140_1.dll)
+Copyright (c) Microsoft Corporation. Redistributed unmodified under the Visual Studio
+redistributable terms.
+
+--------------------------------------------------------------------------------
+.NET runtime (compiled into Glance.exe and Glance Setup.exe)
+Copyright (c) .NET Foundation and Contributors. Licensed under the MIT License:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this
+software and associated documentation files (the "Software"), to deal in the Software
+without restriction, including without limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.

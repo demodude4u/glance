@@ -162,8 +162,11 @@ def main():
     exts = (".stl", ".obj", ".step", ".stp", ".iges", ".igs")
 
     print("== 1: both boxes ticked (the default) ==")
-    w = SetupWindow(setup, env)
+    report = os.path.join(out, "fonts.txt")
+    w = SetupWindow(setup, dict(env, GLANCE_SETUP_REPORT=report))
     w.shot(os.path.join(out, "1-ready.png"))
+    fonts = open(report).read() if os.path.exists(report) else ""
+    check("setup uses the built-in typeface", fonts == "loaded=3 regular=True medium=True light=True", fonts)
     check("both boxes are ticked to begin with", w.checked(ID_ASSOCIATE) and w.checked(ID_MENU))
     check("the button says Install", w.text(ID_GO) == "Install", w.text(ID_GO))
     t0 = time.time(); w.click(ID_GO)
@@ -174,6 +177,7 @@ def main():
     check("Done closes setup with exit code 0", w.finish() == 0)
     n = sum(len(f) for _, _, f in os.walk(inst))
     check("program files are in place", os.path.exists(exe) and os.path.exists(os.path.join(inst, "step", "glance-step.exe")), "%d files" % n)
+    check("licence notices are installed", os.path.exists(os.path.join(inst, "THIRD-PARTY-NOTICES.txt")) and os.path.exists(os.path.join(inst, "Apache-2.0.txt")))
     check("Start menu shortcut is written", os.path.exists(lnk) and os.path.getsize(lnk) > 100)
     want = '"%s" "%%1"' % exe
     check("every type opens with Glance", all(reg(C + e) == "Glance.Model" + e and reg(C + "Glance.Model%s\\shell\\open\\command" % e) == want for e in exts))
