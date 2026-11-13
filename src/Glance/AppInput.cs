@@ -64,6 +64,15 @@ internal static unsafe partial class App
                 if (Environment.GetEnvironmentVariable("GLANCE_TEST_DIR") != null) CycleFileUnit();      // test hook: step to the next unit
                 return true;
 
+            case WM_APP + 5:        // test hook: save a picture without the dialog. wp bit 0 = transparent, wp >> 1 = size factor (0 = as set)
+                if (Environment.GetEnvironmentVariable("GLANCE_TEST_DIR") is string shots && _mesh != null)
+                {
+                    if (wp != 0) { Settings.PictureAlpha = (wp & 1) != 0; if ((int)(wp >> 1) is 1 or 2 or 4) Settings.PictureScale = (int)(wp >> 1); }
+                    SavePicture(Path.Combine(shots, "export.png"), wait: true);
+                    Invalidate();
+                }
+                return true;
+
             case WM_APP + 4:
                 if (Environment.GetEnvironmentVariable("GLANCE_TEST_DIR") != null) { ToggleFixUnits(); Invalidate(); }   // test hook for Shift+U
                 return true;
@@ -101,7 +110,7 @@ internal static unsafe partial class App
                 _mouseX = mx; _mouseY = my;
                 if (_drag == 3) { DragSlider(mx); return true; }
                 if (_drag != 0 && _mesh != null) Drag(mx, my);
-                else if (_mesh != null && (_measure || _layFlat || _fixUnits || my < 64 * _scale || _hotButton >= 0)) { _hoverDirty = _measure || _layFlat; Invalidate(); }
+                else if (_mesh != null && (_measure || _layFlat || _fixUnits || _picture || my < 64 * _scale || _hotButton >= 0)) { _hoverDirty = _measure || _layFlat; Invalidate(); }
                 return true;
 
             case WM_LBUTTONDBLCLK:
@@ -207,6 +216,7 @@ internal static unsafe partial class App
         {
             case 0x1B:
                 if (_help) _help = false;
+                else if (_picture) _picture = false;
                 else if (_fixUnits) _fixUnits = false;
                 else if (_layFlat) { _layFlat = false; _hover = null; }
                 else if (_measure && (_selA != null || _selB != null)) ClearMeasure();
@@ -243,6 +253,7 @@ internal static unsafe partial class App
             case 'R': _spin = !_spin; _velYaw = _velPitch = 0; Toast(_spin ? "Turntable" : "Turntable off"); break;
             case 'I' or 0x09: _info = !_info; break;
             case 'S':
+                if (ctrl) { _picture = false; SavePicture(); break; }
                 if (_mesh == null) break;
                 if (_mesh.SmoothNrm == null) { Toast(_mesh.Nrm != null ? "This model has its own shading" : "Smooth shading isn't ready yet"); break; }
                 _smooth = !_smooth;

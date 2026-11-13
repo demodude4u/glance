@@ -43,6 +43,7 @@ internal static unsafe class GL
     [DllImport(L)] public static extern void glLineWidth(float w);
     [DllImport(L)] public static extern void glReadPixels(int x, int y, int w, int h, uint fmt, uint type, void* data);
     [DllImport(L)] public static extern void glReadBuffer(uint mode);
+    [DllImport(L)] public static extern void glDrawBuffer(uint mode);
     [DllImport(L)] public static extern void glGetIntegerv(uint name, int* v);
     [DllImport(L)] public static extern void glFinish();
     [DllImport(L)] public static extern nint glGetString(uint name);
@@ -86,6 +87,10 @@ internal static unsafe class GL
     public static delegate* unmanaged<uint, int, uint, int, int, void> RenderbufferStorageMultisample;
     public static delegate* unmanaged<int, int, int, int, int, int, int, int, uint, uint, void> BlitFramebuffer;
     public static delegate* unmanaged<uint, void> ActiveTexture;
+    public static delegate* unmanaged<uint, uint, uint, uint, int, void> FramebufferTexture2D;
+    public static delegate* unmanaged<uint, void> GenerateMipmap;
+    public static delegate* unmanaged<int, uint*, void> DeleteFramebuffers;
+    public static delegate* unmanaged<uint, uint, uint, uint, void> BlendFuncSeparate;
     public static delegate* unmanaged<int, int> SwapInterval;
 
     static nint P(string name, bool required = true)
@@ -139,6 +144,10 @@ internal static unsafe class GL
         RenderbufferStorageMultisample = (delegate* unmanaged<uint, int, uint, int, int, void>)P("glRenderbufferStorageMultisample");
         BlitFramebuffer = (delegate* unmanaged<int, int, int, int, int, int, int, int, uint, uint, void>)P("glBlitFramebuffer");
         ActiveTexture = (delegate* unmanaged<uint, void>)P("glActiveTexture");
+        FramebufferTexture2D = (delegate* unmanaged<uint, uint, uint, uint, int, void>)P("glFramebufferTexture2D");
+        GenerateMipmap = (delegate* unmanaged<uint, void>)P("glGenerateMipmap");
+        DeleteFramebuffers = (delegate* unmanaged<int, uint*, void>)P("glDeleteFramebuffers");
+        BlendFuncSeparate = (delegate* unmanaged<uint, uint, uint, uint, void>)P("glBlendFuncSeparate");
         SwapInterval = (delegate* unmanaged<int, int>)P("wglSwapIntervalEXT", required: false);
     }
 

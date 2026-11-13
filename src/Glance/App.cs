@@ -611,11 +611,31 @@ internal static unsafe partial class App
     static int MaterialIndex => Settings.Material >= 0 && Settings.Material < Theme.Materials.Length
         ? Settings.Material : _theme.Dark ? 0 : 1;
 
-    static void Render(bool hud)
+    /// <param name="toWindow">False when the frame is a picture being rendered for copying or saving.</param>
+    static void Render(bool hud, bool toWindow = true)
     {
         if (_w <= 0 || _h <= 0) return;
-        R.Begin(_w, _h);
-        R.Background(_theme.BgCenter, _theme.BgEdge, _w / (float)_h);
+        bool studio = _style >= 4 && _mesh != null && R.HasMesh;
+        float floorZ = _wMin.Z - _radius * 0.002f, floorExtent = _radius * 2.4f;
+        if (studio)
+        {
+            // Two extra looks at the part before the real frame: its depth (for soft shadows in corners)
+            // and its outline from above (for the shadow on the ground).
+            Matrices(out var sm, out var sv, out var sp, out var se);
+            Matrix4x4 svp = sv * sp;
+            Vector4? sclip = ClipPlane();
+            Matrix4x4? floor = se.Z > floorZ
+                ? Matrix4x4.CreateScale(floorExtent * 3, floorExtent * 3, 1) * Matrix4x4.CreateTranslation(_center.X, _center.Y, floorZ) * svp : null;
+            R.Prepass(sm * svp, sclip, _w, _h, floor);
+            var above = new Matrix4x4(1 / floorExtent, 0, 0, 0, 0, 1 / floorExtent, 0, 0, 0, 0, 0, 0, -_center.X / floorExtent, -_center.Y / floorExtent, 0, 1);
+            R.ShadowMap(sm * above, sclip);
+            R.SetStudio(sp, _ortho, _radius * 0.20f, _theme.Dark);
+        }
+        R.Begin(_w, _h, _shotAlpha);
+        if (_shotAlpha) { }
+        else if (studio)        // a plain studio backdrop instead of the working background
+            R.Background(_theme.Dark ? new Vector3(0.17f, 0.18f, 0.20f) : new Vector3(1, 1, 1), _theme.Dark ? new Vector3(0.07f, 0.075f, 0.085f) : new Vector3(0.87f, 0.88f, 0.90f), _w / (float)_h);
+        else R.Background(_theme.BgCenter, _theme.BgEdge, _w / (float)_h);
         if (_mesh != null && R.HasMesh)
         {
             Matrices(out var model, out var view, out var proj, out var eye);
@@ -633,8 +653,10 @@ internal static unsafe partial class App
                 edge = _theme.Dark ? new Vector4(1, 1, 1, 0.80f) : new Vector4(0.05f, 0.06f, 0.08f, 0.90f);
             }
             else if (_style == 2) edge.W *= 0.55f;
+            else if (_style == 4) { if (!useCol) mat = new Vector3(0.87f, 0.86f, 0.84f); }             // clay
+            else if (_style == 5) { mat = new Vector3(0.80f, 0.82f, 0.85f); useCol = false; }          // aluminum
             Vector3 upView = Vector3.TransformNormal(Vector3.UnitZ, view);
-            R.Model(mv, mvp, mat, useCol, _ortho, _theme.Dark ? 0.10f : 0.05f, _edges, _wire, edge, _scale >= 1.75f ? 1.6f : 1.1f,
+            R.Model(mv, mvp, mat, useCol, _ortho, _theme.Dark ? 0.10f : 0.05f, _edges, _wire, edge, (_scale >= 1.75f ? 1.6f : 1.1f) * _shotK,
                 clip, _theme.Dark ? new Vector3(0.36f, 0.42f, 0.50f) : new Vector3(0.62f, 0.68f, 0.76f),
                 _style, new Vector4(upView, _wMin.Z - eye.Z), _radius * 0.004f);
             _vp = vp;
@@ -645,7 +667,11 @@ internal static unsafe partial class App
                 if (_selA?.Tris != null) R.Highlight(mvp, _selA.Tris, new Vector4(ac, 0.50f), clip);
                 if (_selB?.Tris != null) R.Highlight(mvp, _selB.Tris, new Vector4(ac, 0.50f), clip);
             }
-            if (_grid)
+            if (studio)
+            {
+                if (eye.Z > floorZ) R.Floor(vp, new Vector3(_center.X, _center.Y, floorZ), floorExtent, _theme.Dark ? 0.60f : 0.58f);
+            }
+            else if (_grid)
             {
                 float gz = _wMin.Z - _radius * 0.002f;
                 bool below = eye.Z < gz;
@@ -653,6 +679,7 @@ internal static unsafe partial class App
                 R.Grid(vp, new Vector3(_center.X, _center.Y, gz), _radius, GridStep(), gc, below ? 0 : _theme.Shadow);
             }
         }
+        if (!toWindow) return;
         R.Resolve(_w, _h);
         if (hud) DrawHud();
     }
@@ -673,25 +700,6 @@ internal static unsafe partial class App
         fixed (byte* p = px) GL.glReadPixels(0, 0, _w, _h, GL.BGRA, GL.UNSIGNED_BYTE, p);
         for (int i = 3; i < px.Length; i += 4) px[i] = 255;
         return px;
-    }
-
-    static void CopyImage()
-    {
-        if (_mesh == null) return;
-        Render(hud: false);
-        byte[] px = ReadPixels();
-        Invalidate();
-        nint mem = GlobalAlloc(0x0002, (nuint)(40 + px.Length));
-        if (mem == 0) return;
-        byte* dst = (byte*)GlobalLock(mem);
-        *(BITMAPINFOHEADER*)dst = new BITMAPINFOHEADER { biSize = 40, biWidth = _w, biHeight = _h, biPlanes = 1, biBitCount = 32, biSizeImage = (uint)px.Length };
-        Marshal.Copy(px, 0, (nint)(dst + 40), px.Length);
-        GlobalUnlock(mem);
-        if (OpenClipboard(_hwnd) != 0)
-        {
-            EmptyClipboard(); SetClipboardData(8, mem); CloseClipboard();
-            Toast("Picture copied");
-        }
     }
 
     /// <summary>Test hook: once the model is loaded, analysed and still, save the frame as a BMP and exit.</summary>
@@ -748,7 +756,7 @@ internal static unsafe partial class App
             $"edges={_edges}", $"edgeLines={(m?.EdgeLines?.Length ?? 0) / 6}", $"wire={_wire}", $"shading={ShadingName.Replace(' ', '_')}", $"grid={_grid}", $"ortho={_ortho}",
             $"dark={_theme.Dark}", $"material={Theme.Materials[MaterialIndex].Name}", $"fileColors={_fileColors && R.HasColors}",
             $"smooth={_smooth && m?.SmoothNrm != null}", $"yUp={_yUp}", $"layFlat={_layFlat}", $"custom={_customOrient}", $"worldDims={_wMax.X - _wMin.X:0.000},{_wMax.Y - _wMin.Y:0.000},{_wMax.Z - _wMin.Z:0.000}", $"help={_help}", $"info={_info}", $"spin={_spin}",
-            $"toast={_toast}", $"fixUnits={_fixUnits}", $"unitRows={string.Join(";", _unitRows.Select(r => $"{r.X + r.W / 2:0},{r.Y + r.H / 2:0}"))}", $"fileUnit={m?.FileUnit}", $"unitSource={m?.UnitSource}", $"dims={(m != null ? $"{m.Max.X - m.Min.X:0.000},{m.Max.Y - m.Min.Y:0.000},{m.Max.Z - m.Min.Z:0.000}" : "")}", $"measure={_measure}", $"hover={_hover?.Kind}", $"selA={_selA?.Kind}", $"selB={_selB?.Kind}",
+            $"toast={_toast}", $"picture={_picture}", $"picButtons={string.Join(";", _picButtons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}", $"pictureSize={PictureSize().W}x{PictureSize().H}", $"fixUnits={_fixUnits}", $"unitRows={string.Join(";", _unitRows.Select(r => $"{r.X + r.W / 2:0},{r.Y + r.H / 2:0}"))}", $"fileUnit={m?.FileUnit}", $"unitSource={m?.UnitSource}", $"dims={(m != null ? $"{m.Max.X - m.Min.X:0.000},{m.Max.Y - m.Min.Y:0.000},{m.Max.Z - m.Min.Z:0.000}" : "")}", $"measure={_measure}", $"hover={_hover?.Kind}", $"selA={_selA?.Kind}", $"selB={_selB?.Kind}",
             $"result={(_result != null ? _result.Title + "|" + _result.Value.ToString("0.0000") : _selA != null ? Single(_selA) : "")}",
             $"section={_section}", $"sectionPos={_sectionPos:0.000}", $"inch={_inch}", $"box={_box}", $"watertight={m?.Closed}",
             $"ppu={_h / (2 * _cur.Dist * MathF.Tan(Fov / 2)):0.00000}", $"regions={m?.Regions.Count ?? 0}", $"chains={(m?.ChainClosed?.Length ?? 0)}", $"loadMs={_loadMs:0.0}", $"cache={m?.FromCache}", $"size={_w}x{_h}", $"scale={_scale}", $"fonts={(U.Body.Name + "/" + U.Medium.Name + "/" + U.Title.Name).Replace(' ', '_')}", $"fontsLoaded={BundledFonts.Loaded}", $"version={AppVersion.Full.Replace(' ', '_')}", $"buttons={string.Join(";", _buttons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}"));

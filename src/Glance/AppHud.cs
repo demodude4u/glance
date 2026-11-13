@@ -38,11 +38,13 @@ internal static partial class App
             StatusPill(s, m);
             Gizmo(s, m);
             Toolbar(s, m);
+            PictureButton(s, m, _toolbarRight);
             if (_section != 0) SectionSlider(s, m);
             if (_layFlat) { MeasureOverlay(s); LayFlatCard(s, m); }
             if (_measure) MeasureCard(s, m);
             if (_info) InfoCard(s, m);
             if (_fixUnits) FixUnitsCard(s);
+            if (_picture) PictureCard(s, m);
         }
         else if (_error != null) ErrorState(s);
         else if (!_loading) EmptyState(s);
@@ -218,9 +220,9 @@ internal static partial class App
     ];
     static readonly (string Key, string What)[] HelpRight =
     [
-        ("V", "Shading: shaded, lines, X-ray, overhangs\u2026"), ("E", "Edges"), ("W", "Wireframe"), ("S", "Smooth / flat shading"), ("G", "Grid"), ("C", "Color"), ("T", "Light / dark"),
+        ("V", "Shading: shaded, studio, metal, X-ray\u2026"), ("E", "Edges"), ("W", "Wireframe"), ("S", "Smooth / flat shading"), ("G", "Grid"), ("C", "Color"), ("T", "Light / dark"),
         ("B", "Bounding box"), ("U", "Show mm / inch"), ("Shift U", "STL / OBJ: file's own units"), ("Z", "Flip the up axis / undo lay flat"), ("I", "Details"), ("← →", "Previous / next file"), ("O", "Open a file"),
-        ("Ctrl C", "Copy a picture"), ("Esc", "Close"),
+        ("Ctrl C", "Copy a picture"), ("Ctrl S", "Save a picture (PNG)"), ("Esc", "Close"),
     ];
 
     static void HelpCard(float s)

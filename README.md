@@ -23,7 +23,8 @@ screen before you have let go of the mouse.
 | F | Fit to window |
 | 1 – 6, 0 | Front, back, left, right, top, bottom, isometric |
 | P | Perspective / orthographic (also the **Ortho** button) |
-| V | Shading: Shaded, Smooth, Lines, X-ray, Wire, Overhangs (also the toolbar button; Shift+V goes back) |
+| V | Shading: Shaded, Smooth, Studio, Metal, Lines, X-ray, Wire, Overhangs (also the toolbar button; Shift+V goes back) |
+| Ctrl+S | Save a picture as PNG (the **Picture** button sets size and background) |
 | E, W, S, G | Edges, wireframe, smooth / flat shading, grid |
 | C, T | Color, light / dark |
 | Z | Flip the up axis |
@@ -60,6 +61,15 @@ Click a third feature to start again, **Esc** to clear. Dragging still orbits wh
 STEP faces are the exact CAD faces;
 on STL files faces are found from creases, so a hole needs to be reasonably round (12 or more sides) to be
 recognised as a circle.
+
+### Pictures
+
+The **Picture** button (top right) copies or saves the current view without the toolbar, readouts or cards.
+Size is 1, 2 or 4 times the window (a 4× picture of a full-HD window is 7680 × 4320), and the background is
+either as shown or transparent, for dropping onto a slide or a document. **Ctrl+C** copies and **Ctrl+S** saves with
+the last settings. For presentation pictures, choose the **Studio** or **Metal** look first: both replace the grid and
+working background with a plain backdrop and add soft shadows. The clipboard has no transparency, so a copied
+picture always has a background.
 
 ### Units
 

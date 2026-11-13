@@ -2,6 +2,15 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
+## 1.2.0 (2026-11-13)
+
+- **Studio and Metal looks.** Two more stops on the Shading button, made for pictures: Studio is matte clay with soft
+  shadows in corners and on the ground; Metal is machined metal reflecting a photo studio. Both swap the working
+  background and grid for a plain backdrop. They are set up the first time they are chosen, so start-up is unchanged.
+- **Picture button** (top right). Copy or save a picture of the current view, at 1, 2 or 4 times the window's
+  size, with the background as shown or transparent. Pictures never include the toolbar or readouts.
+  **Ctrl+S** saves a PNG; **Ctrl+C** copies, now at the chosen size.
+
 ## 1.1.0 (2026-11-13)
 
 - **Installer.** `Glance Setup.exe`: one file, two ticked options (open model files with Glance; right-click

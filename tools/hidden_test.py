@@ -273,11 +273,57 @@ def units_and_layflat_tests(exe, S, env, out):
         s.key("5"); s.key("0")
         if spot:
             xy = tuple(float(v) for v in spot.split(","))
-            for _ in range(6):
+            for _ in range(8):
                 s.post_many([(WM_LBUTTONDOWN, 1, s.xy(*xy)), (WM_LBUTTONUP, 0, s.xy(*xy))], gap=0.03)
                 names.append(s.shot("shading-%d" % len(names))["shading"])
-        check("the Shading button steps through six looks and comes back round",
-              names == ["Shaded", "Smooth", "Lines", "X-ray", "Wire", "Overhangs", "Shaded"], " > ".join(names))
+        check("the Shading button steps through eight looks and comes back round",
+              names == ["Shaded", "Smooth", "Studio", "Metal", "Lines", "X-ray", "Wire", "Overhangs", "Shaded"], " > ".join(names))
+
+        # pictures
+        def press(spot):
+            s.post_many([(WM_LBUTTONDOWN, 1, s.xy(*spot)), (WM_LBUTTONUP, 0, s.xy(*spot))], gap=0.03)
+
+        def spots(state, key):
+            return {b.split(":")[0]: tuple(float(v) for v in b.split(":")[1].split(",")) for b in state[key].split(";") if b}
+        export = os.path.join(out, "export.png")
+        s.key("V"); s.key("V")
+        st = s.shot("studio")
+        check("Studio look is on for the picture tests", st["shading"] == "Studio")
+        pic = spots(st, "buttons").get("9")
+        check("the toolbar has a Picture button", pic is not None, st["buttons"])
+        press(pic)
+        card = s.shot("picture-card")
+        ctl = spots(card, "picButtons")
+        check("Picture opens a card with copy, save, size and background", card["picture"] == "True" and sorted(ctl) == ["20", "21", "22", "23", "24", "25", "26"], card["picButtons"])
+        win = tuple(int(v) for v in card["size"].split("x"))
+        press(ctl["24"]); press(ctl["26"])
+        big = s.shot("picture-4x-transparent")
+        want = tuple(int(v) for v in big["pictureSize"].split("x"))
+        check("choosing 4x makes the picture larger than the window", want[0] >= win[0] * 2 and want[1] >= win[1] * 2, "%s for a %s window" % (big["pictureSize"], card["size"]))
+        if os.path.exists(export): os.remove(export)
+        s.post(0x8000 + 5)
+        s.shot("picture-saved")
+        ok = os.path.exists(export)
+        im = Image.open(export) if ok else None
+        check("a transparent picture is saved as a PNG at the chosen size", ok and im.size == want and im.mode == "RGBA", "%s %s" % ((im.size, im.mode) if ok else ("missing", "")))
+        if ok:
+            a = im.getchannel("A")
+            lo, hi = a.getextrema()
+            check("its background is see-through and the part is solid", a.getpixel((2, 2)) == 0 and hi == 255, "corner alpha %d, range %d-%d" % (a.getpixel((2, 2)), lo, hi))
+            im.close(); shutil.copy(export, os.path.join(out, "export-studio-transparent.png"))
+        press(ctl["23"]); press(ctl["25"])
+        s.key(0x1B)
+        closed = s.shot("picture-closed")
+        check("Esc closes the Picture card without closing Glance", closed["picture"] == "False")
+        s.post(0x8000 + 5); s.shot("picture-saved-2")
+        im = Image.open(export)
+        check("an 'as shown' picture is opaque, at twice the window, with no toolbar", im.mode == "RGB" and im.size == (win[0] * 2, win[1] * 2), "%s %s" % (im.size, im.mode))
+        im.close(); shutil.copy(export, os.path.join(out, "export-studio.png"))
+        s.key("V"); s.post(0x8000 + 5); s.shot("picture-saved-3")
+        shutil.copy(export, os.path.join(out, "export-metal.png"))
+        for _ in range(5):
+            s.key("V")
+        check("back to Shaded after the picture tests", s.shot("shading-reset")["shading"] == "Shaded")
         s.key("V")
         check("V does the same from the keyboard", s.shot("shading-key")["shading"] == "Smooth")
         s.key("E")

@@ -3,7 +3,7 @@ using static Glance.GL;
 
 namespace Glance;
 
-internal sealed unsafe class Renderer
+internal sealed unsafe partial class Renderer
 {
     uint _bg, _mesh, _line, _grid;
     uint _quadVao, _quadVbo;
@@ -214,7 +214,8 @@ internal sealed unsafe class Renderer
 
     public void Clear() { _meshVerts = 0; _meshIdx = 0; _edgeVerts = 0; }
 
-    public void Begin(int w, int h)
+    /// <param name="clear">Start from a fully transparent frame (a picture without a backdrop).</param>
+    public void Begin(int w, int h, bool clear = false)
     {
         if (w != _fbW || h != _fbH || _fbo == 0)
         {
@@ -232,7 +233,8 @@ internal sealed unsafe class Renderer
         BindFramebuffer(FRAMEBUFFER, _fbo);
         glViewport(0, 0, w, h);
         glDepthMask(1);
-        glClear(DEPTH_BUFFER_BIT);
+        if (clear) { glClearColor(0, 0, 0, 0); glClear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT); }
+        else glClear(DEPTH_BUFFER_BIT);
     }
 
     public void Background(Vector3 center, Vector3 edge, float aspect)
@@ -265,7 +267,7 @@ internal sealed unsafe class Renderer
     {
         if (_meshVerts == 0 || tris.Length == 0) return;
         glEnable(DEPTH_TEST); glDepthFunc(LEQUAL); glDepthMask(0);
-        glEnable(BLEND); glBlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA);
+        glEnable(BLEND); BlendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE, ONE_MINUS_SRC_ALPHA);
         if (clip.HasValue) glEnable(CLIP_DISTANCE0);
         UseProgram(_line);
         Mat(_line, "uMVP", mvp); Clip(_line, clip);
@@ -286,29 +288,31 @@ internal sealed unsafe class Renderer
         if (_meshVerts == 0) return;
         bool xray = style == 2;
         glEnable(DEPTH_TEST); glDepthFunc(LEQUAL);
-        if (xray) { glEnable(BLEND); glBlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA); glDepthMask(0); }
+        if (xray) { glEnable(BLEND); BlendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE, ONE_MINUS_SRC_ALPHA); glDepthMask(0); }
         else glDisable(BLEND);
         if (clip.HasValue) glEnable(CLIP_DISTANCE0);
         glEnable(POLYGON_OFFSET_FILL); glPolygonOffset(1f, 1f);
-        UseProgram(_mesh);
-        Mat(_mesh, "uMV", mv); Mat(_mesh, "uMVP", mvp);
-        Uniform3f(Loc(_mesh, "uBase"), baseColor.X, baseColor.Y, baseColor.Z);
-        Uniform1f(Loc(_mesh, "uFlat"), _hasNrm ? 0 : 1);
-        Uniform1f(Loc(_mesh, "uUseCol"), useFileColors && _hasCol ? 1 : 0);
-        Uniform1f(Loc(_mesh, "uOrtho"), ortho ? 1 : 0);
-        Uniform1f(Loc(_mesh, "uRim"), rim);
-        Uniform4f(Loc(_mesh, "uCut"), cutColor.X, cutColor.Y, cutColor.Z, clip.HasValue && !xray ? 1 : 0);
-        Uniform1f(Loc(_mesh, "uStyle"), style);
-        Uniform4f(Loc(_mesh, "uUp"), up.X, up.Y, up.Z, up.W);
-        Uniform1f(Loc(_mesh, "uEps"), eps);
-        Clip(_mesh, clip);
+        uint prog = style >= 4 ? RenderProgram() : _mesh;
+        UseProgram(prog);
+        Mat(prog, "uMV", mv); Mat(prog, "uMVP", mvp);
+        Uniform3f(Loc(prog, "uBase"), baseColor.X, baseColor.Y, baseColor.Z);
+        Uniform1f(Loc(prog, "uFlat"), _hasNrm ? 0 : 1);
+        Uniform1f(Loc(prog, "uUseCol"), useFileColors && _hasCol ? 1 : 0);
+        Uniform1f(Loc(prog, "uOrtho"), ortho ? 1 : 0);
+        Uniform1f(Loc(prog, "uRim"), rim);
+        Uniform4f(Loc(prog, "uCut"), cutColor.X, cutColor.Y, cutColor.Z, clip.HasValue && !xray ? 1 : 0);
+        Uniform1f(Loc(prog, "uStyle"), style);
+        Uniform4f(Loc(prog, "uUp"), up.X, up.Y, up.Z, up.W);
+        Uniform1f(Loc(prog, "uEps"), eps);
+        Clip(prog, clip);
+        if (style >= 4) StudioUniforms(prog);
         BindVertexArray(_meshVao);
         DrawGeometry();
         glDisable(POLYGON_OFFSET_FILL);
         if (xray) { glDepthMask(1); glDisable(DEPTH_TEST); }       // every edge shows, including the ones behind
 
         if (!edges && !wire) { glDisable(CLIP_DISTANCE0); glEnable(DEPTH_TEST); return; }
-        glEnable(BLEND); glBlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA);
+        glEnable(BLEND); BlendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE, ONE_MINUS_SRC_ALPHA);
         glDepthMask(0);
         glLineWidth(lineWidth);
         UseProgram(_line);

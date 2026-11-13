@@ -141,6 +141,7 @@ internal static unsafe class Win32
     [DllImport("shell32")] public static extern void SHChangeNotify(int evt, uint flags, nint a, nint b);
     [DllImport("shlwapi")] public static extern int StrCmpLogicalW(char* a, char* b);
     [DllImport("comdlg32")] public static extern int GetOpenFileNameW(OPENFILENAMEW* ofn);
+    [DllImport("comdlg32")] public static extern int GetSaveFileNameW(OPENFILENAMEW* ofn);
 
     public static int LoWord(nint v) => (short)(v & 0xFFFF);
     public static int HiWord(nint v) => (short)((v >> 16) & 0xFFFF);

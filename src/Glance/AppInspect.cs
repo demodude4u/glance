@@ -64,13 +64,16 @@ internal static unsafe partial class App
 
     // ───────────────────────── Shading ─────────────────────────
 
-    static int _style;      // how faces are filled: 0 shaded, 1 lines (flat paper), 2 x-ray, 3 overhangs
+    static int _style;      // how faces are filled: 0 shaded, 1 lines (flat paper), 2 x-ray, 3 overhangs, 4 studio clay, 5 metal
+    static float _toolbarRight;
 
     /// The looks the Shading button steps through. E and W still switch edges and wireframe on their own.
     static readonly (string Name, string Note, int Style, bool Edges, bool Wire)[] Shadings =
     [
         ("Shaded", "solid with edges", 0, true, false),
         ("Smooth", "solid, no edges", 0, false, false),
+        ("Studio", "matte clay with soft shadows, for pictures", 4, false, false),
+        ("Metal", "machined metal in a photo studio", 5, false, false),
         ("Lines", "edges only, like a drawing", 1, true, false),
         ("X-ray", "see through to inner features", 2, true, false),
         ("Wire", "every triangle", 0, true, true),
@@ -272,6 +275,7 @@ internal static unsafe partial class App
     static bool HudClick(int mx, int my)
     {
         if (_mesh == null) return false;
+        if (_picture) return PictureClick(mx, my);
         if (_fixUnits)                      // the chooser is modal: a row picks, anywhere else closes
         {
             for (int i = 0; i < _unitRows.Count; i++)
@@ -296,6 +300,7 @@ internal static unsafe partial class App
                 case 6: ToggleLayFlat(); break;
                 case 7: ToggleOrtho(); break;
                 case 8: CycleShading(); break;
+                case 9: TogglePicture(); break;
             }
             Invalidate();
             return true;
@@ -347,6 +352,7 @@ internal static unsafe partial class App
             x += w + gap;
         }
 
+        _toolbarRight = x - gap;
         // Files without trustworthy units get one more button: what the file's numbers are being read as.
         if (_mesh!.UnitChoice)
         {
@@ -360,6 +366,7 @@ internal static unsafe partial class App
             U.Rect(x, y, w, h, h / 2, guess ? _theme.Accent : _theme.PanelBorder, guess ? 1.5f * s : 1);
             U.Text(U.Medium, label, x + pad, y + (h - U.Medium.Height) / 2, _theme.Text);
             _buttons.Add((x, y, w, h, 5));
+            _toolbarRight = x + w;
         }
     }
 
