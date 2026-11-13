@@ -166,7 +166,10 @@ def main():
     w = SetupWindow(setup, dict(env, GLANCE_SETUP_REPORT=report))
     w.shot(os.path.join(out, "1-ready.png"))
     fonts = open(report).read() if os.path.exists(report) else ""
-    check("setup uses the built-in typeface", fonts == "loaded=3 regular=True medium=True light=True", fonts)
+    props = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "Directory.Build.props"), encoding="utf-8").read()
+    version = props.split("<Version>")[1].split("</Version>")[0]
+    check("setup uses the built-in typeface", fonts.endswith("loaded=3 regular=True medium=True light=True"), fonts)
+    check("setup carries the version from Directory.Build.props", fonts.startswith("version=%s " % version), "%s vs %s" % (fonts.split(" ")[0], version))
     check("both boxes are ticked to begin with", w.checked(ID_ASSOCIATE) and w.checked(ID_MENU))
     check("the button says Install", w.text(ID_GO) == "Install", w.text(ID_GO))
     t0 = time.time(); w.click(ID_GO)
@@ -182,6 +185,8 @@ def main():
     want = '"%s" "%%1"' % exe
     check("every type opens with Glance", all(reg(C + e) == "Glance.Model" + e and reg(C + "Glance.Model%s\\shell\\open\\command" % e) == want for e in exts))
     check("every type has the right-click entry", all(reg(menu_key % e) == want for e in exts), str(reg(menu_key % ".stl")))
+    check("Installed apps shows the same version", reg("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Glance", "DisplayVersion") == version,
+          str(reg("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Glance", "DisplayVersion")))
     check("Glance is listed in Installed apps", reg("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Glance", "DisplayName") == "Glance"
           and (reg("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Glance", "UninstallString") or "").endswith('--uninstall'))
 

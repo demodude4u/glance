@@ -134,11 +134,11 @@ internal static unsafe class Setup
         _fSmall = Font(regular ? Glance.BundledFonts.Regular : "Segoe UI", 9, 400);
         _fButton = Font(medium ? Glance.BundledFonts.Medium : "Segoe UI Semibold", 10.5f, medium ? 500 : 600);
         if (Environment.GetEnvironmentVariable("GLANCE_SETUP_REPORT") is string report)        // test hook: which faces are in use
-            File.WriteAllText(report, $"loaded={Glance.BundledFonts.Loaded} regular={regular} medium={medium} light={HasFont(Glance.BundledFonts.Light)}");
+            File.WriteAllText(report, $"version={Glance.AppVersion.Number} loaded={Glance.BundledFonts.Loaded} regular={regular} medium={medium} light={HasFont(Glance.BundledFonts.Light)}");
         _icon = LoadImageW(inst, (char*)32512, 1, D(44), D(44), 0);
 
         const uint style = 0x00C80000 | 0x00020000;        // caption + system menu + minimise box, fixed size
-        fixed (char* cls = "GlanceSetup") fixed (char* title = "Glance Setup") fixed (char* button = "BUTTON")
+        fixed (char* cls = "GlanceSetup") fixed (char* title = "Glance " + Glance.AppVersion.Number + " Setup") fixed (char* button = "BUTTON")
         {
             var wc = new WNDCLASSEXW
             {

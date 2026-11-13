@@ -226,6 +226,8 @@ def units_and_layflat_tests(exe, S, env, out):
     try:
         s.post(0x8000 + 4)
         a = s.shot("fix-units-open")
+        import re
+        check("the build carries a version number", re.fullmatch(r"\d+\.\d+\.\d+(_\([0-9a-f]{7}\))?", a["version"]) is not None, a["version"])
         check("text is drawn with the built-in typeface", a["fonts"] == "Glance_Roboto/Glance_Roboto_Medium/Glance_Roboto_Light" and a["fontsLoaded"] == "3",
               "%s, %s loaded" % (a["fonts"], a["fontsLoaded"]))
         rows = [tuple(float(v) for v in r.split(",")) for r in a["unitRows"].split(";") if r]
@@ -254,6 +256,32 @@ def units_and_layflat_tests(exe, S, env, out):
 
     s = Session(exe, S("plate-holes.stl"), env, out)
     try:
+        a = s.shot("ortho-before")
+        spot = dict(b.split(":") for b in a["buttons"].split(";") if b).get("7")
+        check("the toolbar has an Ortho button", spot is not None, a["buttons"])
+        if spot:
+            xy = tuple(float(v) for v in spot.split(","))
+            s.post_many([(WM_LBUTTONDOWN, 1, s.xy(*xy)), (WM_LBUTTONUP, 0, s.xy(*xy))], gap=0.03)
+            b = s.shot("ortho-toggled")
+            s.post_many([(WM_LBUTTONDOWN, 1, s.xy(*xy)), (WM_LBUTTONUP, 0, s.xy(*xy))], gap=0.03)
+            c = s.shot("ortho-back")
+            check("the Ortho button switches orthographic on and off", b["ortho"] != a["ortho"] and c["ortho"] == a["ortho"],
+                  "%s, %s, %s" % (a["ortho"], b["ortho"], c["ortho"]))
+        names = [s.shot("shading-start")["shading"]]
+        spot = dict(b.split(":") for b in s.shot("shading-buttons")["buttons"].split(";") if b).get("8")
+        check("the toolbar has a Shading button", spot is not None)
+        s.key("5"); s.key("0")
+        if spot:
+            xy = tuple(float(v) for v in spot.split(","))
+            for _ in range(6):
+                s.post_many([(WM_LBUTTONDOWN, 1, s.xy(*xy)), (WM_LBUTTONUP, 0, s.xy(*xy))], gap=0.03)
+                names.append(s.shot("shading-%d" % len(names))["shading"])
+        check("the Shading button steps through six looks and comes back round",
+              names == ["Shaded", "Smooth", "Lines", "X-ray", "Wire", "Overhangs", "Shaded"], " > ".join(names))
+        s.key("V")
+        check("V does the same from the keyboard", s.shot("shading-key")["shading"] == "Smooth")
+        s.key("E")
+        check("E still switches edges on its own", s.shot("shading-edges")["shading"] == "Shaded")
         a = s.shot("mm-plate")
         check("a millimeter-sized STL is left alone", a["fileUnit"] == "mm" and a["dims"].startswith("80.000,50.000,10.000"), a["dims"])
     finally:

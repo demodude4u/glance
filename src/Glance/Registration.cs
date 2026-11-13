@@ -79,7 +79,7 @@ internal static class Registration
         using (var k = Registry.CurrentUser.CreateSubKey(UninstallKey))
         {
             k.SetValue("DisplayName", "Glance");
-            k.SetValue("DisplayVersion", "1.0.0");
+            k.SetValue("DisplayVersion", AppVersion.Number);
             k.SetValue("DisplayIcon", $"\"{exe}\",0");
             k.SetValue("InstallLocation", dir);
             k.SetValue("UninstallString", $"\"{exe}\" --uninstall");

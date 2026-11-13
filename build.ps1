@@ -33,4 +33,5 @@ Compress-Archive -Path "$dist\*" -DestinationPath $payload -CompressionLevel Opt
 dotnet publish "$root\src\Setup\Setup.csproj" -c Release -o "$root\build\setup" --nologo -v q
 if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
 Copy-Item "$root\build\setup\Glance Setup.exe" "$root\dist\Glance Setup.exe" -Force
-"Built $root\dist\Glance Setup.exe  ({0:N1} MB)" -f ((Get-Item "$root\dist\Glance Setup.exe").Length / 1MB)
+$version = ([xml](Get-Content "$root\src\Directory.Build.props")).Project.PropertyGroup.Version
+"Built $root\dist\Glance Setup.exe  version $version  ({0:N1} MB)" -f ((Get-Item "$root\dist\Glance Setup.exe").Length / 1MB)

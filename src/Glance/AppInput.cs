@@ -235,7 +235,8 @@ internal static unsafe partial class App
             case '4': SetView(0, 0); Toast("Right"); break;
             case '5': SetView(Front, MathF.PI / 2); Toast("Top"); break;
             case '6': SetView(Front, -MathF.PI / 2); Toast("Bottom"); break;
-            case 'P': _ortho = !_ortho; Toast(_ortho ? "Orthographic" : "Perspective"); break;
+            case 'P': ToggleOrtho(); break;
+            case 'V': if (_mesh != null) CycleShading(KeyDown(VK_SHIFT)); break;
             case 'E': _edges = !_edges; Toast(_edges ? "Edges on" : "Edges off"); break;
             case 'W': _wire = !_wire; Toast(_wire ? "Wireframe on" : "Wireframe off"); break;
             case 'G': _grid = !_grid; Toast(_grid ? "Grid on" : "Grid off"); break;

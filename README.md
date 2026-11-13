@@ -22,7 +22,8 @@ screen before you have let go of the mouse.
 | Double-click | Focus on a point (double-click empty space to fit) |
 | F | Fit to window |
 | 1 – 6, 0 | Front, back, left, right, top, bottom, isometric |
-| P | Perspective / orthographic |
+| P | Perspective / orthographic (also the **Ortho** button) |
+| V | Shading: Shaded, Smooth, Lines, X-ray, Wire, Overhangs (also the toolbar button; Shift+V goes back) |
 | E, W, S, G | Edges, wireframe, smooth / flat shading, grid |
 | C, T | Color, light / dark |
 | Z | Flip the up axis |
@@ -86,6 +87,17 @@ appears for a type, choose Glance there once and click **Always**.
 
 Unattended: `"Glance Setup.exe" --quiet [--no-associate] [--no-menu]`, and `Glance.exe --uninstall --quiet`.
 From this folder, `.\build.ps1` builds everything and `.\install.ps1` / `.\uninstall.ps1` run those two commands.
+
+## Releasing
+
+1. Set the new number in `src\Directory.Build.props` (the only place it lives) and add a section to `CHANGELOG.md`.
+2. Commit, then run `.\build.ps1` so the build carries that commit's id, and run both test suites
+   (`tools\hidden_test.py`, `tools\hidden_setup.py`).
+3. Tag the commit `vX.Y.Z`. Hand out `dist\Glance Setup.exe`; running it over an older Glance replaces it.
+
+The version shows in the help card (F1) as "Version 1.1.0 (commit)", in the installer's title bar, in the file
+properties of both programs and under Settings > Apps > Installed apps. Use the third number for fixes, the second
+for new features.
 
 ## Building
 

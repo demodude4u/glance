@@ -218,7 +218,7 @@ internal static partial class App
     ];
     static readonly (string Key, string What)[] HelpRight =
     [
-        ("E", "Edges"), ("W", "Wireframe"), ("S", "Smooth / flat shading"), ("G", "Grid"), ("C", "Color"), ("T", "Light / dark"),
+        ("V", "Shading: shaded, lines, X-ray, overhangs\u2026"), ("E", "Edges"), ("W", "Wireframe"), ("S", "Smooth / flat shading"), ("G", "Grid"), ("C", "Color"), ("T", "Light / dark"),
         ("B", "Bounding box"), ("U", "Show mm / inch"), ("Shift U", "STL / OBJ: file's own units"), ("Z", "Flip the up axis / undo lay flat"), ("I", "Details"), ("← →", "Previous / next file"), ("O", "Open a file"),
         ("Ctrl C", "Copy a picture"), ("Esc", "Close"),
     ];
@@ -233,6 +233,8 @@ internal static partial class App
         float x = (_w - w) / 2, y = MathF.Max((_h - h) / 2, 8 * s);
         Card(x, y, w, h, s);
         U.Text(U.Title, "Glance", x + pad, y + pad - 6 * s, _theme.Text);
+        string version = "Version " + AppVersion.Full;
+        U.Text(U.Body, version, x + w - pad - U.Measure(U.Body, version), y + pad - 6 * s + U.Title.Height - U.Body.Height - 5 * s, Fade(_theme.Dim, 0.85f));
         U.Rect(x + pad, y + pad + U.Title.Height - 2 * s, 26 * s, 3 * s, 1.5f * s, _theme.Accent);
         float top = y + pad + U.Title.Height + 14 * s;
         Column(HelpLeft, x + pad, top);

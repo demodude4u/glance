@@ -627,8 +627,16 @@ internal static unsafe partial class App
             Matrix4x4 mvp = mv * proj;
             _mvp = mvp;
             Vector4? clip = ClipPlane();
+            if (_style == 1)            // Lines: paper and ink, whatever the material
+            {
+                mat = _theme.Dark ? new Vector3(0.16f, 0.17f, 0.19f) : new Vector3(0.97f, 0.97f, 0.97f); useCol = false;
+                edge = _theme.Dark ? new Vector4(1, 1, 1, 0.80f) : new Vector4(0.05f, 0.06f, 0.08f, 0.90f);
+            }
+            else if (_style == 2) edge.W *= 0.55f;
+            Vector3 upView = Vector3.TransformNormal(Vector3.UnitZ, view);
             R.Model(mv, mvp, mat, useCol, _ortho, _theme.Dark ? 0.10f : 0.05f, _edges, _wire, edge, _scale >= 1.75f ? 1.6f : 1.1f,
-                clip, _theme.Dark ? new Vector3(0.36f, 0.42f, 0.50f) : new Vector3(0.62f, 0.68f, 0.76f));
+                clip, _theme.Dark ? new Vector3(0.36f, 0.42f, 0.50f) : new Vector3(0.62f, 0.68f, 0.76f),
+                _style, new Vector4(upView, _wMin.Z - eye.Z), _radius * 0.004f);
             _vp = vp;
             if (hud && (_measure || _layFlat))
             {
@@ -737,12 +745,12 @@ internal static unsafe partial class App
             $"file={(_path != null ? Path.GetFileName(_path) : "")}", $"error={_error}", $"tris={m?.TriCount ?? 0}",
             $"yaw={_cur.Yaw:0.0000}", $"pitch={_cur.Pitch:0.0000}", $"dist={_cur.Dist:0.0000}",
             $"target={_cur.Target.X:0.000},{_cur.Target.Y:0.000},{_cur.Target.Z:0.000}", $"radius={_radius:0.000}",
-            $"edges={_edges}", $"edgeLines={(m?.EdgeLines?.Length ?? 0) / 6}", $"wire={_wire}", $"grid={_grid}", $"ortho={_ortho}",
+            $"edges={_edges}", $"edgeLines={(m?.EdgeLines?.Length ?? 0) / 6}", $"wire={_wire}", $"shading={ShadingName.Replace(' ', '_')}", $"grid={_grid}", $"ortho={_ortho}",
             $"dark={_theme.Dark}", $"material={Theme.Materials[MaterialIndex].Name}", $"fileColors={_fileColors && R.HasColors}",
             $"smooth={_smooth && m?.SmoothNrm != null}", $"yUp={_yUp}", $"layFlat={_layFlat}", $"custom={_customOrient}", $"worldDims={_wMax.X - _wMin.X:0.000},{_wMax.Y - _wMin.Y:0.000},{_wMax.Z - _wMin.Z:0.000}", $"help={_help}", $"info={_info}", $"spin={_spin}",
             $"toast={_toast}", $"fixUnits={_fixUnits}", $"unitRows={string.Join(";", _unitRows.Select(r => $"{r.X + r.W / 2:0},{r.Y + r.H / 2:0}"))}", $"fileUnit={m?.FileUnit}", $"unitSource={m?.UnitSource}", $"dims={(m != null ? $"{m.Max.X - m.Min.X:0.000},{m.Max.Y - m.Min.Y:0.000},{m.Max.Z - m.Min.Z:0.000}" : "")}", $"measure={_measure}", $"hover={_hover?.Kind}", $"selA={_selA?.Kind}", $"selB={_selB?.Kind}",
             $"result={(_result != null ? _result.Title + "|" + _result.Value.ToString("0.0000") : _selA != null ? Single(_selA) : "")}",
             $"section={_section}", $"sectionPos={_sectionPos:0.000}", $"inch={_inch}", $"box={_box}", $"watertight={m?.Closed}",
-            $"ppu={_h / (2 * _cur.Dist * MathF.Tan(Fov / 2)):0.00000}", $"regions={m?.Regions.Count ?? 0}", $"chains={(m?.ChainClosed?.Length ?? 0)}", $"loadMs={_loadMs:0.0}", $"cache={m?.FromCache}", $"size={_w}x{_h}", $"scale={_scale}", $"fonts={(U.Body.Name + "/" + U.Medium.Name + "/" + U.Title.Name).Replace(' ', '_')}", $"fontsLoaded={BundledFonts.Loaded}"));
+            $"ppu={_h / (2 * _cur.Dist * MathF.Tan(Fov / 2)):0.00000}", $"regions={m?.Regions.Count ?? 0}", $"chains={(m?.ChainClosed?.Length ?? 0)}", $"loadMs={_loadMs:0.0}", $"cache={m?.FromCache}", $"size={_w}x{_h}", $"scale={_scale}", $"fonts={(U.Body.Name + "/" + U.Medium.Name + "/" + U.Title.Name).Replace(' ', '_')}", $"fontsLoaded={BundledFonts.Loaded}", $"version={AppVersion.Full.Replace(' ', '_')}", $"buttons={string.Join(";", _buttons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}"));
     }
 }

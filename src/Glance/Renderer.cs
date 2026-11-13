@@ -52,7 +52,7 @@ internal sealed unsafe class Renderer
     const string MeshFs = """
         #version 330 core
         uniform vec3 uBase; uniform float uFlat; uniform float uUseCol; uniform float uOrtho; uniform float uRim;
-        uniform vec4 uCut;
+        uniform vec4 uCut; uniform float uStyle; uniform vec4 uUp; uniform float uEps;
         in vec3 vView; in vec3 vNrm; in vec4 vCol; out vec4 o;
         void main(){
           if (uCut.a > 0.5 && !gl_FrontFacing) {
@@ -63,6 +63,8 @@ internal sealed unsafe class Renderer
           }
           vec3 N = uFlat > 0.5 ? normalize(cross(dFdx(vView), dFdy(vView))) : normalize(vNrm);
           vec3 V = uOrtho > 0.5 ? vec3(0.0, 0.0, 1.0) : normalize(-vView);
+          // The surface's own outward direction, before it is turned to face the viewer for lighting.
+          vec3 Out = uFlat > 0.5 ? (gl_FrontFacing ? N : -N) : N;
           if (dot(N, V) < 0.0) N = -N;
           vec3 base = mix(uBase, vCol.rgb, vCol.a * uUseCol);
           vec3 L1 = normalize(vec3(0.45, 0.65, 0.62));
@@ -73,7 +75,24 @@ internal sealed unsafe class Renderer
           vec3 c = base * (0.40 + 0.16 * sky + 0.52 * key + 0.14 * fill);
           float spec = pow(max(dot(N, normalize(L1 + V)), 0.0), 56.0) * 0.16;
           float fres = pow(1.0 - max(dot(N, V), 0.0), 4.0) * uRim;
-          o = vec4(c + spec + fres, 1.0);
+          if (uStyle > 0.5 && uStyle < 1.5) {
+            // Lines: flat paper-like fill so only the edges read, as on a drawing.
+            o = vec4(uBase * (0.94 + 0.06 * key), 1.0);
+          } else if (uStyle > 1.5 && uStyle < 2.5) {
+            // X-ray: glass that thickens toward its silhouette, so inner features show through.
+            float edge = pow(1.0 - max(dot(N, V), 0.0), 1.6);
+            o = vec4(c + spec, 0.10 + 0.50 * edge);
+          } else if (uStyle > 2.5) {
+            // Overhangs: faces that lean more than 45 degrees past vertical and are not resting on the ground.
+            float down = dot(normalize(Out), -uUp.xyz);
+            float height = dot(vView, uUp.xyz) - uUp.w;
+            float t = smoothstep(0.7071, 0.7171, down) * step(uEps, height);
+            vec3 warn = mix(vec3(1.0, 0.757, 0.027), vec3(0.86, 0.20, 0.13), smoothstep(0.7071, 1.0, down));
+            vec3 calm = vec3(dot(c, vec3(0.3, 0.59, 0.11))) * 0.92 + 0.04;
+            o = vec4(mix(calm, warn * (0.72 + 0.28 * (0.5 + 0.5 * N.z)), t), 1.0);
+          } else {
+            o = vec4(c + spec + fres, 1.0);
+          }
         }
         """;
 
@@ -262,10 +281,13 @@ internal sealed unsafe class Renderer
     }
 
     public void Model(Matrix4x4 mv, Matrix4x4 mvp, Vector3 baseColor, bool useFileColors, bool ortho, float rim,
-        bool edges, bool wire, Vector4 edgeColor, float lineWidth, Vector4? clip, Vector3 cutColor)
+        bool edges, bool wire, Vector4 edgeColor, float lineWidth, Vector4? clip, Vector3 cutColor, int style = 0, Vector4 up = default, float eps = 0)
     {
         if (_meshVerts == 0) return;
-        glEnable(DEPTH_TEST); glDepthFunc(LEQUAL); glDisable(BLEND);
+        bool xray = style == 2;
+        glEnable(DEPTH_TEST); glDepthFunc(LEQUAL);
+        if (xray) { glEnable(BLEND); glBlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA); glDepthMask(0); }
+        else glDisable(BLEND);
         if (clip.HasValue) glEnable(CLIP_DISTANCE0);
         glEnable(POLYGON_OFFSET_FILL); glPolygonOffset(1f, 1f);
         UseProgram(_mesh);
@@ -275,13 +297,17 @@ internal sealed unsafe class Renderer
         Uniform1f(Loc(_mesh, "uUseCol"), useFileColors && _hasCol ? 1 : 0);
         Uniform1f(Loc(_mesh, "uOrtho"), ortho ? 1 : 0);
         Uniform1f(Loc(_mesh, "uRim"), rim);
-        Uniform4f(Loc(_mesh, "uCut"), cutColor.X, cutColor.Y, cutColor.Z, clip.HasValue ? 1 : 0);
+        Uniform4f(Loc(_mesh, "uCut"), cutColor.X, cutColor.Y, cutColor.Z, clip.HasValue && !xray ? 1 : 0);
+        Uniform1f(Loc(_mesh, "uStyle"), style);
+        Uniform4f(Loc(_mesh, "uUp"), up.X, up.Y, up.Z, up.W);
+        Uniform1f(Loc(_mesh, "uEps"), eps);
         Clip(_mesh, clip);
         BindVertexArray(_meshVao);
         DrawGeometry();
         glDisable(POLYGON_OFFSET_FILL);
+        if (xray) { glDepthMask(1); glDisable(DEPTH_TEST); }       // every edge shows, including the ones behind
 
-        if (!edges && !wire) { glDisable(CLIP_DISTANCE0); return; }
+        if (!edges && !wire) { glDisable(CLIP_DISTANCE0); glEnable(DEPTH_TEST); return; }
         glEnable(BLEND); glBlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA);
         glDepthMask(0);
         glLineWidth(lineWidth);
@@ -302,6 +328,7 @@ internal sealed unsafe class Renderer
         }
         glDisable(CLIP_DISTANCE0);
         glDepthMask(1);
+        glEnable(DEPTH_TEST);
     }
 
     public void Grid(Matrix4x4 vp, Vector3 center, float radius, float step, Vector4 color, float shadow)

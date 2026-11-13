@@ -11,7 +11,6 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\Glance\glance.ico</ApplicationIcon>
-    <Version>1.0.0</Version>
     <Product>Glance Setup</Product>
     <Description>Installs the Glance model viewer</Description>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -32,6 +31,7 @@
   <!-- The brand typeface, built in (see src\Shared\BundledFonts.cs and tools\make_fonts.py). -->
   <ItemGroup>
     <Compile Include="..\Shared\BundledFonts.cs" Link="BundledFonts.cs" />
+    <Compile Include="..\Shared\AppVersion.cs" Link="AppVersion.cs" />
     <EmbeddedResource Include="..\Glance\fonts\GlanceRoboto-Regular.ttf" LogicalName="GlanceRoboto-Regular.ttf" />
     <EmbeddedResource Include="..\Glance\fonts\GlanceRoboto-Medium.ttf" LogicalName="GlanceRoboto-Medium.ttf" />
     <EmbeddedResource Include="..\Glance\fonts\GlanceRoboto-Light.ttf" LogicalName="GlanceRoboto-Light.ttf" />

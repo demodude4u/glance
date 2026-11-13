@@ -54,6 +54,47 @@ internal static unsafe partial class App
         _hover = null; _hoverDirty = _layFlat;
     }
 
+    /// <summary>Orthographic (parallel) view: no perspective, so equal sizes look equal. Remembered between runs.</summary>
+    static void ToggleOrtho()
+    {
+        _ortho = !_ortho;
+        Toast(_ortho ? "Orthographic  ·  no perspective, true proportions" : "Perspective");
+        _hoverDirty = _measure || _layFlat;
+    }
+
+    // ───────────────────────── Shading ─────────────────────────
+
+    static int _style;      // how faces are filled: 0 shaded, 1 lines (flat paper), 2 x-ray, 3 overhangs
+
+    /// The looks the Shading button steps through. E and W still switch edges and wireframe on their own.
+    static readonly (string Name, string Note, int Style, bool Edges, bool Wire)[] Shadings =
+    [
+        ("Shaded", "solid with edges", 0, true, false),
+        ("Smooth", "solid, no edges", 0, false, false),
+        ("Lines", "edges only, like a drawing", 1, true, false),
+        ("X-ray", "see through to inner features", 2, true, false),
+        ("Wire", "every triangle", 0, true, true),
+        ("Overhangs", "faces leaning past 45° as the part stands", 3, true, false),
+    ];
+
+    static int ShadingIndex()
+    {
+        for (int i = 0; i < Shadings.Length; i++)
+            if (Shadings[i].Style == _style && Shadings[i].Edges == _edges && Shadings[i].Wire == _wire) return i;
+        for (int i = 0; i < Shadings.Length; i++)
+            if (Shadings[i].Style == _style && Shadings[i].Wire == _wire) return i;
+        return 0;
+    }
+
+    static string ShadingName => Shadings[ShadingIndex()].Name;
+
+    static void CycleShading(bool back = false)
+    {
+        var next = Shadings[(ShadingIndex() + (back ? Shadings.Length - 1 : 1)) % Shadings.Length];
+        _style = next.Style; _edges = next.Edges; _wire = next.Wire;
+        Toast($"{next.Name}  ·  {next.Note}");
+    }
+
     static void CycleSection()
     {
         _section = (_section + 1) % 4;
@@ -253,6 +294,8 @@ internal static unsafe partial class App
                 case 4: _sectionFlip = !_sectionFlip; _hoverDirty = _measure; break;
                 case 5: ToggleFixUnits(); break;
                 case 6: ToggleLayFlat(); break;
+                case 7: ToggleOrtho(); break;
+                case 8: CycleShading(); break;
             }
             Invalidate();
             return true;
@@ -283,9 +326,9 @@ internal static unsafe partial class App
 
     static void Toolbar(float s, float m)
     {
-        string[] labels = ["Measure", _section == 0 ? "Section" : "Section " + "XYZ"[_section - 1], "Box", "Lay flat", UnitName];
-        bool[] on = [_measure, _section != 0, _box, _layFlat, false];
-        int[] actions = [0, 1, 2, 6, 3];
+        string[] labels = ["Measure", _section == 0 ? "Section" : "Section " + "XYZ"[_section - 1], "Box", "Lay flat", "Ortho", ShadingName, UnitName];
+        bool[] on = [_measure, _section != 0, _box, _layFlat, _ortho, false, false];
+        int[] actions = [0, 1, 2, 6, 7, 8, 3];
         float x = m, y = m, h = 32 * s, pad = 14 * s, gap = 6 * s;
         _hotButton = -1;
         for (int i = 0; i < labels.Length; i++)
