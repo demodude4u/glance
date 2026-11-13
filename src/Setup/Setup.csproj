@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AssemblyName>Glance Setup</AssemblyName>
+    <RootNamespace>GlanceSetup</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\Glance\glance.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Product>Glance Setup</Product>
+    <Description>Installs the Glance model viewer</Description>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <PublishAot>true</PublishAot>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <!-- build.ps1 zips dist\Glance into build\payload.zip before publishing this project. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\build\payload.zip" LogicalName="payload.zip" />
+  </ItemGroup>
+
+</Project>

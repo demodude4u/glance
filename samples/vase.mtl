@@ -1,0 +1,4 @@
+newmtl body
+Kd 0.0 0.278 0.671
+newmtl band
+Kd 1.0 0.757 0.027

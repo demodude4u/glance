@@ -1,0 +1,7 @@
+# build output and downloaded dependencies (OpenCascade SDK: see README, Building)
+/build/
+/dist/
+bin/
+obj/
+__pycache__/
+*.pyc
