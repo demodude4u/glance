@@ -173,6 +173,10 @@ internal static unsafe partial class App
     {
         public static readonly ModeOption Lines = new("wire.lines", "Lines", ["All triangles", "Feature edges only"]);
         public static readonly ModeOption[] All = [Lines];
+
+        /// <summary>Said when feature edges are asked for on a model that has none (a smooth, organic shape): it keeps its triangles.</summary>
+        public static string? Remark => Lines.Value == 1 && !R.HasEdges ? "no sharp edges on this model, so every triangle is drawn" : null;
+        public static string Note => Lines.Value == 0 ? "every triangle" : Remark ?? "the part's edges only, nothing filled in";
     }
 
     /// Overhangs: how far past vertical a face may lean before it is marked.
@@ -242,7 +246,9 @@ internal static unsafe partial class App
         var options = ModeOptions();
         if (options == null || i < 0 || i >= options.Length) return;
         options[i].Next();
-        Toast($"{options[i].Label}  ·  {options[i].Name}");
+        string said = $"{options[i].Label}  ·  {options[i].Name}";
+        if (_wire && _style == 0 && WireLook.Remark is string remark) said += "  ·  " + remark;
+        Toast(said, said.Length > 40 ? 2.6f : 1.6f);
     }
 
     /// <summary>The second row: one small button per option, wrapping onto further lines in a narrow window.</summary>

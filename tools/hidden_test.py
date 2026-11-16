@@ -826,6 +826,11 @@ def fraction_and_option_tests(exe, S, env, out):
 
     s = Session(exe, S("knot.stl"), env, out)
     try:
+        st = to_shading(s, "Wire", "wire-knot")
+        press(s, spot(st, 100)); st = s.shot("wire-knot-feature-edges")
+        check("a model with no sharp edges keeps its triangles, and says why", opt(st)["Lines"] == "Feature edges only" and "no sharp edges" in st["toast"],
+              "%s (%s feature edge lines)" % (st["toast"], st["edgeLines"]))
+        press(s, spot(st, 100)); st = s.shot("wire-knot-all")
         st = to_shading(s, "Overhangs", "overhangs-knot")
         w, h = (int(v) for v in st["size"].split("x"))
         marked = {}

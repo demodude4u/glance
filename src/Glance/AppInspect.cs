@@ -129,7 +129,7 @@ internal static unsafe partial class App
         var next = Shadings[(ShadingIndex() + (back ? Shadings.Length - 1 : 1)) % Shadings.Length];
         _style = next.Style; _edges = next.Edges; _wire = next.Wire;
         if (_style == 2) _edges = Settings.Option("xray.edges", 1) == 1;       // X-ray remembers whether its edges were on
-        string note = _style == 3 ? $"faces leaning past {OverhangLook.Degrees}° as the part stands" : next.Note;
+        string note = _style == 3 ? $"faces leaning past {OverhangLook.Degrees}° as the part stands" : _wire ? WireLook.Note : next.Note;
         Toast($"{next.Name}  ·  {note}");
     }
 
