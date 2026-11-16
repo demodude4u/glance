@@ -133,6 +133,10 @@ write_binary_stl(os.path.join(out, "plate-holes.stl"), plate_with_holes())
 inch = [tuple(tuple(c / 25.4 for c in v) for v in t) for t in plate_with_holes()]
 write_binary_stl(os.path.join(out, "plate-inch-declared.stl"), inch, b"alibre stl binary : Units=Inch")
 write_binary_stl(os.path.join(out, "plate-inch-undeclared.stl"), inch)
+# The same plate drawn in sixteenths of an inch: 5 x 3 1/8 x 5/8 in, holes of 3/4 and 1/2 in, 2 1/2 in apart.
+# Every one of those is a fraction; the corner-to-corner diagonal (5.8962 in) is not. For the fraction tests.
+sixteenths = [tuple(tuple(c / 16.0 for c in v) for v in t) for t in plate_with_holes()]
+write_binary_stl(os.path.join(out, "plate-fraction.stl"), sixteenths, b"alibre stl binary : Units=Inch")
 write_binary_stl(os.path.join(out, "knot.stl"), knot())
 bracket = box(0, 0, 0, 60, 40, 6) + box(0, 0, 6, 6, 40, 46) + box(6, 17, 6, 40, 23, 30)
 write_ascii_stl(os.path.join(out, "bracket-ascii.stl"), bracket)

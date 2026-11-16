@@ -466,7 +466,7 @@ internal static unsafe partial class App
             r.Z, u.Z, d.Z, 0,
             -Vector3.Dot(r, eye), -Vector3.Dot(u, eye), -Vector3.Dot(d, eye), 1);
         float dc = (eye - _center).Length(), far = dc + _radius * 6.5f;
-        float aspect = _w / (float)_h, t = MathF.Tan(Fov / 2);
+        float aspect = _w / (float)_h, t = MathF.Tan(Fov / 2) * _shotCrop;      // a picture shows only its framed part of the view
         if (_ortho)
         {
             float near = dc - _radius * 6.5f, hh = _cur.Dist * t, hw = hh * aspect;
@@ -610,6 +610,7 @@ internal static unsafe partial class App
         if (_loading) moving = true;
         if (UpdateTick(dt)) moving = true;
         if (_toast.Length > 0) { if (Seconds(_toastAt) > _toastFor) _toast = ""; else moving = true; }
+        if (_frameFlash != 0) { if (Seconds(_frameFlash) > FrameFlashSeconds) _frameFlash = 0; else moving = true; }
         return moving || _snapshot != null;
     }
 
@@ -621,6 +622,10 @@ internal static unsafe partial class App
     {
         if (_w <= 0 || _h <= 0) return;
         bool studio = _style >= 4 && _mesh != null && R.HasMesh;
+        // Studio's own options (light, backdrop, material, ground shadow). Metal keeps the look it has always had.
+        bool clay = studio && _style == 4;
+        int light = clay ? StudioLook.Light.Value : 0, backdrop = clay ? StudioLook.Backdrop.Value : _theme.Dark ? 2 : 0;
+        bool ground = !clay || StudioLook.Shadow.Value == 1;
         float floorZ = _wMin.Z - _radius * 0.002f, floorExtent = _radius * 2.4f;
         if (studio)
         {
@@ -629,17 +634,23 @@ internal static unsafe partial class App
             Matrices(out var sm, out var sv, out var sp, out var se);
             Matrix4x4 svp = sv * sp;
             Vector4? sclip = ClipPlane();
-            Matrix4x4? floor = se.Z > floorZ
+            Matrix4x4? floor = ground && se.Z > floorZ
                 ? Matrix4x4.CreateScale(floorExtent * 3, floorExtent * 3, 1) * Matrix4x4.CreateTranslation(_center.X, _center.Y, floorZ) * svp : null;
             R.Prepass(sm * svp, sclip, _w, _h, floor);
-            var above = new Matrix4x4(1 / floorExtent, 0, 0, 0, 0, 1 / floorExtent, 0, 0, 0, 0, 0, 0, -_center.X / floorExtent, -_center.Y / floorExtent, 0, 1);
-            R.ShadowMap(sm * above, sclip);
-            R.SetStudio(sp, _ortho, _radius * 0.20f, _theme.Dark);
+            if (ground)
+            {
+                var above = new Matrix4x4(1 / floorExtent, 0, 0, 0, 0, 1 / floorExtent, 0, 0, 0, 0, 0, 0, -_center.X / floorExtent, -_center.Y / floorExtent, 0, 1);
+                R.ShadowMap(sm * above, sclip);
+            }
+            R.SetStudio(sp, _ortho, _radius * 0.20f, _theme.Dark, light);
         }
         R.Begin(_w, _h, _shotAlpha);
         if (_shotAlpha) { }
         else if (studio)        // a plain studio backdrop instead of the working background
-            R.Background(_theme.Dark ? new Vector3(0.17f, 0.18f, 0.20f) : new Vector3(1, 1, 1), _theme.Dark ? new Vector3(0.07f, 0.075f, 0.085f) : new Vector3(0.87f, 0.88f, 0.90f), _w / (float)_h);
+        {
+            var (center, rim) = StudioLook.BackdropColors(backdrop);
+            R.Background(center, rim, _w / (float)_h);
+        }
         else R.Background(_theme.BgCenter, _theme.BgEdge, _w / (float)_h);
         if (_mesh != null && R.HasMesh)
         {
@@ -647,6 +658,8 @@ internal static unsafe partial class App
             Matrix4x4 mv = model * view, vp = view * proj;
             Vector3 mat = Theme.Materials[MaterialIndex].Color;
             bool useCol = _fileColors && R.HasColors;
+            if (_style == 4) StudioLook.Apply(ref mat, ref useCol);
+            else if (_style == 5) { mat = new Vector3(0.80f, 0.82f, 0.85f); useCol = false; }          // aluminum
             float lum = useCol ? 0.6f : mat.X * 0.3f + mat.Y * 0.59f + mat.Z * 0.11f;
             Vector4 edge = lum > 0.32f ? new Vector4(0.05f, 0.06f, 0.08f, 0.62f) : new Vector4(1, 1, 1, 0.42f);
             Matrix4x4 mvp = mv * proj;
@@ -658,8 +671,6 @@ internal static unsafe partial class App
                 edge = _theme.Dark ? new Vector4(1, 1, 1, 0.80f) : new Vector4(0.05f, 0.06f, 0.08f, 0.90f);
             }
             else if (_style == 2) edge.W *= 0.55f;
-            else if (_style == 4) { if (!useCol) mat = new Vector3(0.87f, 0.86f, 0.84f); }             // clay
-            else if (_style == 5) { mat = new Vector3(0.80f, 0.82f, 0.85f); useCol = false; }          // aluminum
             Vector3 upView = Vector3.TransformNormal(Vector3.UnitZ, view);
             R.Model(mv, mvp, mat, useCol, _ortho, _theme.Dark ? 0.10f : 0.05f, _edges, _wire, edge, (_scale >= 1.75f ? 1.6f : 1.1f) * _shotK,
                 clip, _theme.Dark ? new Vector3(0.36f, 0.42f, 0.50f) : new Vector3(0.62f, 0.68f, 0.76f),
@@ -674,7 +685,7 @@ internal static unsafe partial class App
             }
             if (studio)
             {
-                if (eye.Z > floorZ) R.Floor(vp, new Vector3(_center.X, _center.Y, floorZ), floorExtent, _theme.Dark ? 0.60f : 0.58f);
+                if (ground && eye.Z > floorZ) R.Floor(vp, new Vector3(_center.X, _center.Y, floorZ), floorExtent, backdrop == 2 ? 0.60f : 0.58f);
             }
             else if (_grid)
             {
@@ -761,7 +772,10 @@ internal static unsafe partial class App
             $"edges={_edges}", $"edgeLines={(m?.EdgeLines?.Length ?? 0) / 6}", $"wire={_wire}", $"shading={ShadingName.Replace(' ', '_')}", $"grid={_grid}", $"ortho={_ortho}",
             $"dark={_theme.Dark}", $"material={Theme.Materials[MaterialIndex].Name}", $"fileColors={_fileColors && R.HasColors}",
             $"smooth={_smooth && m?.SmoothNrm != null}", $"yUp={_yUp}", $"layFlat={_layFlat}", $"custom={_customOrient}", $"worldDims={_wMax.X - _wMin.X:0.000},{_wMax.Y - _wMin.Y:0.000},{_wMax.Z - _wMin.Z:0.000}", $"help={_help}", $"info={_info}", $"spin={_spin}",
-            $"toast={_toast}", $"update={Updater.State}", $"updateFill={_updFill:0.00}", $"updateAt={(_updA > 0 ? $"{_updRect.X + _updRect.W / 2:0},{_updRect.Y + _updRect.H / 2:0}" : "")}", $"picture={_picture}", $"picButtons={string.Join(";", _picButtons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}", $"pictureSize={PictureSize().W}x{PictureSize().H}", $"fixUnits={_fixUnits}", $"unitRows={string.Join(";", _unitRows.Select(r => $"{r.X + r.W / 2:0},{r.Y + r.H / 2:0}"))}", $"fileUnit={m?.FileUnit}", $"unitSource={m?.UnitSource}", $"dims={(m != null ? $"{m.Max.X - m.Min.X:0.000},{m.Max.Y - m.Min.Y:0.000},{m.Max.Z - m.Min.Z:0.000}" : "")}", $"measure={_measure}", $"hover={_hover?.Kind}", $"selA={_selA?.Kind}", $"selB={_selB?.Kind}",
+            $"toast={_toast}", $"update={Updater.State}", $"updateFill={_updFill:0.00}", $"updateAt={(_updA > 0 ? $"{_updRect.X + _updRect.W / 2:0},{_updRect.Y + _updRect.H / 2:0}" : "")}", $"picture={_picture}", $"picButtons={string.Join(";", _picButtons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}", $"pictureSize={PictureSize().W}x{PictureSize().H}", $"pictureChoice={PictureSizes[PictureChoice()].Key}", $"pictureLimited={PictureSize().Limited}", $"pictureFrame={PictureFrame().X:0.0},{PictureFrame().Y:0.0},{PictureFrame().W:0.0},{PictureFrame().H:0.0}", $"pictureCard={_picCard.X:0},{_picCard.Y:0},{_picCard.W:0},{_picCard.H:0}",
+            $"units={(Settings.Units == 1 ? "in" : Settings.Units == 2 ? "frac" : "mm")}", $"sizeText={(m != null ? Len3(ShownSize().X, ShownSize().Y, ShownSize().Z) : "")}", $"resultText={(_result != null ? (_result.IsAngle ? Deg(_result.Value) : Len(_result.Value)) : "")}",
+            $"options={string.Join(";", (ModeOptions() ?? []).Select(o => o.Label + ":" + o.Name))}", $"optionRects={string.Join(";", _buttons.Where(b => b.Action >= 100).Select(b => $"{b.X:0},{b.Y:0},{b.W:0},{b.H:0}"))}", $"optionLines={_optLines}", $"solidPills={_solidPills}",
+            $"sliderBox={_sliderBox.X:0},{_sliderBox.Y:0},{_sliderBox.W:0},{_sliderBox.H:0}", $"toastY={_toastY:0}", $"toolbarRight={_toolbarRight:0}", $"fixUnits={_fixUnits}", $"unitRows={string.Join(";", _unitRows.Select(r => $"{r.X + r.W / 2:0},{r.Y + r.H / 2:0}"))}", $"fileUnit={m?.FileUnit}", $"unitSource={m?.UnitSource}", $"dims={(m != null ? $"{m.Max.X - m.Min.X:0.000},{m.Max.Y - m.Min.Y:0.000},{m.Max.Z - m.Min.Z:0.000}" : "")}", $"measure={_measure}", $"hover={_hover?.Kind}", $"selA={_selA?.Kind}", $"selB={_selB?.Kind}",
             $"result={(_result != null ? _result.Title + "|" + _result.Value.ToString("0.0000") : _selA != null ? Single(_selA) : "")}",
             $"section={_section}", $"sectionPos={_sectionPos:0.000}", $"inch={_inch}", $"box={_box}", $"watertight={m?.Closed}",
             $"ppu={_h / (2 * _cur.Dist * MathF.Tan(Fov / 2)):0.00000}", $"regions={m?.Regions.Count ?? 0}", $"chains={(m?.ChainClosed?.Length ?? 0)}", $"loadMs={_loadMs:0.0}", $"cache={m?.FromCache}", $"size={_w}x{_h}", $"scale={_scale}", $"fonts={(U.Body.Name + "/" + U.Medium.Name + "/" + U.Title.Name).Replace(' ', '_')}", $"fontsLoaded={BundledFonts.Loaded}", $"version={AppVersion.Full.Replace(' ', '_')}", $"buttons={string.Join(";", _buttons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}"));

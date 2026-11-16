@@ -30,16 +30,20 @@ internal static partial class App
         float s = _scale, m = 16 * s;
         U.Begin(_w, _h);
 
-        _buttons.Clear(); _slider = default;
+        _buttons.Clear(); _slider = default; _sliderBox = default;
+        _optBottom = m + 32 * s; _optRight = 0; _optLines = 0;
+        SceneLook();
         UpdateLayout(s, m);
         if (_mesh != null)
         {
+            if (FrameShowing) PictureFrameOverlay(s);
             if (_box) BoxDims(s);
             if (_measure) MeasureOverlay(s);
             StatusPill(s, m);
             Gizmo(s, m);
             Toolbar(s, m);
             PictureButton(s, m, _toolbarRight);
+            OptionsRow(s, m);
             if (_section != 0) SectionSlider(s, m);
             if (_layFlat) { MeasureOverlay(s); LayFlatCard(s, m); }
             if (_measure) MeasureCard(s, m);
@@ -63,7 +67,7 @@ internal static partial class App
         Vector3 d = ShownSize();
         var parts = new List<(string Text, Vector4 Color)>
         {
-            ($"{Bare(d.X)} × {Bare(d.Y)} × {Bare(d.Z)} {UnitName}", _theme.Text),
+            (Len3(d.X, d.Y, d.Z), _theme.Text),
             ($"{mesh.TriCount:N0} triangles", _theme.Dim),
             (Time(_loadMs), _theme.Dim),
         };
@@ -78,8 +82,7 @@ internal static partial class App
         }
         float x = m, y = _h - m - h;
         _pillRight = x + width;
-        U.Rect(x, y, width, h, h / 2, _theme.Panel);
-        U.Rect(x, y, width, h, h / 2, _theme.PanelBorder, 1);
+        Pill(x, y, width, h);
         float tx = x + pad, ty = y + (h - U.Body.Height) / 2;
         for (int i = 0; i < parts.Count; i++)
         {
@@ -154,7 +157,8 @@ internal static partial class App
         };
         float pad = 16 * s, row = 23 * s, w = 268 * s, head = 30 * s;
         float h = pad * 2 + head + rows.Count * row - 4 * s;
-        float x = m, y = m + 46 * s;
+        float x = m, y = _optBottom + 14 * s;                                           // under the toolbar and the mode's options
+        if (_sliderBox.W > 0 && _sliderBox.X < x + w + 12 * s) y = MathF.Max(y, _sliderBox.Y + _sliderBox.H + 10 * s);
         Card(x, y, w, h, s);
         U.Text(U.Medium, Fit(U.Medium, Path.GetFileName(_path ?? ""), w - pad * 2), x + pad, y + pad, _theme.Text);
         U.Rect(x + pad, y + pad + head - 8 * s, 22 * s, 2 * s, s, _theme.Accent);
@@ -201,16 +205,22 @@ internal static partial class App
         if (x1 - x0 > bh) U.Rect(x0, by, x1 - x0, bh, bh / 2, _theme.Accent);
     }
 
+    static float _toastY;
+
     static void ToastPill(float s, float m)
     {
         double age = Seconds(_toastAt);
         float a = (float)Math.Clamp(Math.Min(age / 0.12, (_toastFor - age) / 0.30), 0, 1);
-        float pad = 16 * s, h = 34 * s, w = U.Measure(U.Body, _toast) + pad * 2;
-        float x = (_w - w) / 2, y = m - (1 - a) * 6 * s + (_mesh == null ? 0 : _section != 0 ? 94 * s : 46 * s);   // below the toolbar and the section slider
+        string text = Fit(U.Body, _toast, _w - 2 * m - 32 * s);                        // never wider than the window
+        float pad = 16 * s, h = 34 * s, w = U.Measure(U.Body, text) + pad * 2;
+        // Below whatever is at the top: the toolbar, the mode's options and the section slider.
+        float top = _mesh == null ? m : MathF.Max(_optBottom, _sliderBox.W > 0 ? _sliderBox.Y + _sliderBox.H : 0) + 14 * s;
+        float x = (_w - w) / 2, y = top - (1 - a) * 6 * s;
+        _toastY = y;
         U.Rect(x, y + 2 * s, w, h, h / 2, new Vector4(0, 0, 0, 0.18f * a));
         U.Rect(x, y, w, h, h / 2, Fade(_theme.Card, a));
         U.Rect(x, y, w, h, h / 2, Fade(_theme.PanelBorder, a), 1);
-        U.Text(U.Body, _toast, x + pad, y + (h - U.Body.Height) / 2, Fade(_theme.Text, a));
+        U.Text(U.Body, text, x + pad, y + (h - U.Body.Height) / 2, Fade(_theme.Text, a));
     }
 
     static readonly (string Key, string What)[] HelpLeft =
@@ -222,9 +232,9 @@ internal static partial class App
     ];
     static readonly (string Key, string What)[] HelpRight =
     [
-        ("V", "Shading: shaded, studio, metal, X-ray\u2026"), ("E", "Edges"), ("W", "Wireframe"), ("S", "Smooth / flat shading"), ("G", "Grid"), ("C", "Color"), ("T", "Light / dark"),
-        ("B", "Bounding box"), ("U", "Show mm / inch"), ("Shift U", "STL / OBJ: file's own units"), ("Z", "Flip the up axis / undo lay flat"), ("I", "Details"), ("← →", "Previous / next file"), ("O", "Open a file"),
-        ("Ctrl C", "Copy a picture"), ("Ctrl S", "Save a picture (PNG)"), ("Esc", "Close"),
+        ("V", "Shading, with options under the toolbar"), ("E", "Edges"), ("W", "Wireframe"), ("S", "Smooth / flat shading"), ("G", "Grid"), ("C", "Color"), ("T", "Light / dark"),
+        ("B", "Bounding box"), ("U", "Show mm / inch / inch fractions"), ("Shift U", "STL / OBJ: file's own units"), ("Z", "Flip the up axis / undo lay flat"), ("I", "Details"), ("← →", "Previous / next file"), ("O", "Open a file"),
+        ("Ctrl C", "Copy a picture"), ("Ctrl S", "Save a picture (PNG, Full HD, 4K…)"), ("Esc", "Close"),
     ];
 
     static void HelpCard(float s)

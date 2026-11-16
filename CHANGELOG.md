@@ -2,6 +2,25 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
+## 1.5.0 (2026-11-16)
+
+- **Picture sizes by name.** The Picture card offers Window, HD (1280 × 720), Full HD (1920 × 1080), QHD
+  (2560 × 1440), 4K (3840 × 2160) and Square (2048 × 2048) in place of 1×, 2× and 4×. While the card is open the
+  window dims everything outside a frame, and what is inside the frame is the picture. The model can still be
+  turned, moved and zoomed with the card open; a click on the view closes it. **Ctrl+C** and **Ctrl+S** show the
+  frame for a moment. A size the graphics card cannot draw is made as large as it can, and the card says so. An
+  earlier choice of 1× becomes Window and 4× becomes 4K; everyone else starts on Full HD.
+- **Inch fractions.** The units button (and **U**) now steps through mm, inches and inch fractions. With fractions
+  on, a length that is within 0.0005 in of a 64th is written as a reduced fraction (1 3/8", 5/16", 2"); anything
+  else stays decimal, so a fraction on screen means the part is that size. It applies to the size read-out,
+  bounding-box dimensions, measurements and the details card.
+- **Mode options.** A shading mode can have options of its own, shown as a second row of smaller buttons under
+  the toolbar while that mode is on and remembered per mode. Studio is the first: Light (Soft, Left, Right, Top),
+  Backdrop (White, Grey, Dark, Plain), Material (Clay, White, Charcoal, Part color) and Shadow (on, off). On a
+  backdrop that does not suit the theme (Dark in the light theme, say) the buttons turn solid so they stay readable.
+- The section slider now sits under the toolbar instead of over its right-hand buttons, and a long message at
+  the top is shortened to fit a narrow window.
+
 ## 1.4.0 (2026-11-16)
 
 - **Updates you can see.** Glance now looks for a newer version every time it opens (it was once a day). A slim

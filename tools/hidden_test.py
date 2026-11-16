@@ -294,30 +294,93 @@ def units_and_layflat_tests(exe, S, env, out):
         press(pic)
         card = s.shot("picture-card")
         ctl = spots(card, "picButtons")
-        check("Picture opens a card with copy, save, size and background", card["picture"] == "True" and sorted(ctl) == ["20", "21", "22", "23", "24", "25", "26"], card["picButtons"])
+        check("Picture opens a card with copy, save, six sizes and background", card["picture"] == "True" and sorted(ctl) == [str(n) for n in range(20, 30)], card["picButtons"])
         win = tuple(int(v) for v in card["size"].split("x"))
-        press(ctl["24"]); press(ctl["26"])
-        big = s.shot("picture-4x-transparent")
-        want = tuple(int(v) for v in big["pictureSize"].split("x"))
-        check("choosing 4x makes the picture larger than the window", want[0] >= win[0] * 2 and want[1] >= win[1] * 2, "%s for a %s window" % (big["pictureSize"], card["size"]))
-        if os.path.exists(export): os.remove(export)
-        s.post(0x8000 + 5)
-        s.shot("picture-saved")
-        ok = os.path.exists(export)
-        im = Image.open(export) if ok else None
-        check("a transparent picture is saved as a PNG at the chosen size", ok and im.size == want and im.mode == "RGBA", "%s %s" % ((im.size, im.mode) if ok else ("missing", "")))
+
+        def nums(state, key):
+            return [float(v) for v in state[key].split(",")]
+
+        def save(name):
+            if os.path.exists(export): os.remove(export)
+            s.post(0x8000 + 5)
+            s.shot(name)
+            return Image.open(export) if os.path.exists(export) else None
+
+        def solid(im):
+            """Bounding box of the part itself in a transparent picture (its soft shadow is only partly opaque)."""
+            return im.getchannel("A").point(lambda v: 255 if v >= 250 else 0).getbbox()
+
+        fx, fy, fw, fh = nums(card, "pictureFrame")
+        check("a new install makes Full HD pictures", card["pictureChoice"] == "fullhd" and card["pictureSize"] == "1920x1080", "%s %s" % (card["pictureChoice"], card["pictureSize"]))
+        check("the window shows a 16:9 frame that fills its width or its height", abs(fw / fh - 16 / 9) < 0.01 and fx >= -0.5 and fy >= -0.5
+              and (abs(fw - win[0]) < 1 or abs(fh - win[1]) < 1), "frame %s in a %s window" % (card["pictureFrame"], card["size"]))
+        bx, by, bw, bh = nums(card, "pictureCard")
+        check("the card stays inside the window", bx >= 0 and bx + bw <= win[0], card["pictureCard"])
+
+        press(ctl["22"]); press(ctl["29"])                       # Window, transparent
+        asis = s.shot("picture-window-transparent")
+        check("Window makes the picture exactly the window's size", asis["pictureChoice"] == "window" and asis["pictureSize"] == card["size"]
+              and nums(asis, "pictureFrame") == [0, 0, win[0], win[1]], "%s, frame %s" % (asis["pictureSize"], asis["pictureFrame"]))
+        im = save("picture-saved-window")
+        ok = im is not None
+        check("a transparent picture is saved as a PNG at the chosen size", ok and im.size == win and im.mode == "RGBA", "%s %s" % ((im.size, im.mode) if ok else ("missing", "")))
+        ref = None
         if ok:
             a = im.getchannel("A")
             lo, hi = a.getextrema()
             check("its background is see-through and the part is solid", a.getpixel((2, 2)) == 0 and hi == 255, "corner alpha %d, range %d-%d" % (a.getpixel((2, 2)), lo, hi))
+            ref = solid(im)
+            im.close()
+
+        press(ctl["26"])                                         # 4K
+        big = s.shot("picture-4k-transparent")
+        check("4K is 3840 x 2160 whatever the window's shape", big["pictureChoice"] == "4k" and big["pictureSize"] == "3840x2160" and big["pictureLimited"] == "False", big["pictureSize"])
+        im = save("picture-saved-4k")
+        ok = im is not None
+        check("the 4K picture is saved at 3840 x 2160", ok and im.size == (3840, 2160) and im.mode == "RGBA", "%s %s" % ((im.size, im.mode) if ok else ("missing", "")))
+        if ok and ref:
+            # What is inside the frame on screen is what is in the picture: same framing, just more pixels.
+            fx, fy, fw, fh = nums(big, "pictureFrame")
+            k = 2160 / fh
+            got = solid(im)
+            want = [(ref[0] - fx) * k, (ref[1] - fy) * k, (ref[2] - fx) * k, (ref[3] - fy) * k]
+            check("the picture holds exactly what the frame shows", all(abs(g - w_) <= 3 + k for g, w_ in zip(got, want)),
+                  "part at %s, expected about %s" % (got, [round(v) for v in want]))
             im.close(); shutil.copy(export, os.path.join(out, "export-studio-transparent.png"))
-        press(ctl["23"]); press(ctl["25"])
-        s.key(0x1B)
+
+        s.post(0x8000 + 6, 2048)                                 # a graphics card that stops at 2048 pixels
+        lim = s.shot("picture-4k-limited")
+        check("a size the graphics card cannot draw is made as large as it can, and the card says so",
+              lim["pictureSize"] == "2048x1152" and lim["pictureLimited"] == "True", "%s limited=%s" % (lim["pictureSize"], lim["pictureLimited"]))
+        s.post(0x8000 + 6, 0)
+        check("without that limit 4K is whole again", s.shot("picture-4k-unlimited")["pictureSize"] == "3840x2160")
+
+        press(ctl["27"])                                         # Square
+        sq = s.shot("picture-square")
+        fx, fy, fw, fh = nums(sq, "pictureFrame")
+        check("Square is 2048 x 2048 with a square frame", sq["pictureSize"] == "2048x2048" and abs(fw - fh) < 1 and abs(fh - min(win)) < 1, "%s, frame %s" % (sq["pictureSize"], sq["pictureFrame"]))
+        press(ctl["23"])
+        hd = s.shot("picture-hd")
+        check("HD is 1280 x 720", hd["pictureSize"] == "1280x720", hd["pictureSize"])
+        press(ctl["25"])
+        check("QHD is 2560 x 1440", s.shot("picture-qhd")["pictureSize"] == "2560x1440")
+
+        press(ctl["24"]); press(ctl["28"])                       # Full HD, background as shown
+        before = s.shot("picture-fullhd")
+        s.drag(win[0] * 0.25, win[1] * 0.5, win[0] * 0.25 + 120, win[1] * 0.5 + 30)
+        turned = s.shot("picture-orbit")
+        check("dragging the view turns the model while the card stays open", turned["picture"] == "True" and abs(f(turned, "yaw") - f(before, "yaw")) > 0.2,
+              "yaw %.2f -> %.2f" % (f(before, "yaw"), f(turned, "yaw")))
+        press((bx + bw / 2, by + bh - 6))                        # a blank part of the card
+        check("a click on the card itself leaves it open", s.shot("picture-card-click")["picture"] == "True")
+        press((win[0] * 0.25, win[1] * 0.6))
+        check("a click on the view closes the card", s.shot("picture-click-away")["picture"] == "False")
+        s.key("0")
+        press(pic); s.key(0x1B)
         closed = s.shot("picture-closed")
         check("Esc closes the Picture card without closing Glance", closed["picture"] == "False")
-        s.post(0x8000 + 5); s.shot("picture-saved-2")
-        im = Image.open(export)
-        check("an 'as shown' picture is opaque, at twice the window, with no toolbar", im.mode == "RGB" and im.size == (win[0] * 2, win[1] * 2), "%s %s" % (im.size, im.mode))
+        im = save("picture-saved-2")
+        check("an 'as shown' picture is opaque, Full HD, with no toolbar", im is not None and im.mode == "RGB" and im.size == (1920, 1080), "%s %s" % ((im.size, im.mode) if im else ("missing", "")))
         im.close(); shutil.copy(export, os.path.join(out, "export-studio.png"))
         s.key("V"); s.post(0x8000 + 5); s.shot("picture-saved-3")
         shutil.copy(export, os.path.join(out, "export-metal.png"))
@@ -458,8 +521,14 @@ def inspection_tests(exe, S, env, out):
 
         s.key("U")
         u = s.shot("inches")
-        check("U switches to inches", u["inch"] == "True" and "in" in u["result"], u["result"])
-        s.key("U"); s.key(0x1B); s.key(0x1B)
+        check("U switches to inches", u["inch"] == "True" and u["units"] == "in" and "in" in u["result"], u["result"])
+        s.key("U")
+        u2 = s.shot("inch-fractions")
+        check("U again switches to inch fractions", u2["units"] == "frac" and u2["sizeText"].endswith('"'), u2["sizeText"])
+        s.key("U")
+        u3 = s.shot("back-to-mm")
+        check("a third U comes back round to millimeters", u3["units"] == "mm" and u3["inch"] == "False" and "mm" in u3["result"], u3["result"])
+        s.key(0x1B); s.key(0x1B)
         m = s.shot("measure-off")
         check("Esc twice leaves measure mode without closing", m["measure"] == "False")
 
@@ -506,6 +575,213 @@ def inspection_tests(exe, S, env, out):
         check("STEP faces can be picked", b["selA"] not in ("", "None"), "%s: %s" % (b["selA"], b["result"]))
     finally:
         s.close()
+
+
+def fraction_and_option_tests(exe, S, env, out):
+    print("== Part 6: inch fractions, mode options, narrow windows, settings from older versions ==")
+    from PIL import ImageChops
+    k = 25.4 / 16                    # plate-fraction.stl is the 80 x 50 x 10 plate drawn in sixteenths of an inch
+
+    def press(s, spot):
+        s.post_many([(WM_LBUTTONDOWN, 1, s.xy(*spot)), (WM_LBUTTONUP, 0, s.xy(*spot))], gap=0.03)
+
+    def rects(state, key="optionRects"):
+        return [tuple(float(v) for v in r.split(",")) for r in state[key].split(";") if r]
+
+    def spot(state, action):
+        return {b.split(":")[0]: tuple(float(v) for v in b.split(":")[1].split(",")) for b in state["buttons"].split(";") if b}.get(str(action))
+
+    def opt(state):
+        return dict(p.split(":") for p in state["options"].split(";") if p)
+
+    def to_shading(s, name, shot):
+        st = s.shot(shot)
+        for _ in range(8):
+            if st["shading"] == name:
+                break
+            s.key("V"); st = s.shot(shot)
+        return st
+
+    def to_units(s, name, shot):
+        st = s.shot(shot)
+        for _ in range(3):
+            if st["units"] == name:
+                break
+            s.key("U"); st = s.shot(shot)
+        return st
+
+    # ── inch fractions ──
+    s = Session(exe, S("plate-fraction.stl"), env, out)
+    try:
+        a = s.shot("fraction-start")
+        if a["ortho"] != "True":
+            s.key("P")
+        s.key("5")
+        check("lengths start in millimeters", a["units"] == "mm" and a["sizeText"] == "127.00 × 79.375 × 15.875 mm", a["sizeText"])
+        st = to_units(s, "frac", "fraction-units")
+        check("a part made to inch fractions reads as fractions", st["units"] == "frac" and st["sizeText"] == '5" × 3 1/8" × 5/8"', st["sizeText"])
+        check("the units button says fractions are on", spot(st, 3) is not None)
+        s.key("M")
+        b = s.shot("fraction-measure")
+        click(s, b, 26 * k, 25 * k, 10 * k)
+        c = s.shot("fraction-hole")
+        check("a 3/4 inch hole reads as a fraction", c["selA"] == "Circle" and c["result"] == 'Ø 3/4"', c["result"])
+        click(s, c, 64 * k, 25 * k, 10 * k)
+        d = s.shot("fraction-spacing")
+        check("hole spacing of 2 1/2 inches reads as a fraction", d["result"].startswith("Center distance") and d["resultText"] == '2 1/2"', d["resultText"])
+        s.key(0x1B)
+        click(s, d, 0, 0, 10 * k); click(s, d, 80 * k, 50 * k, 10 * k)
+        e = s.shot("fraction-diagonal")
+        check("a length that is not a fraction stays decimal", e["selB"] == "Point" and e["resultText"] == '5.8962"', e["resultText"])
+        s.key(0x1B)
+        click(s, e, 40 * k, 0, 10 * k)
+        g = s.shot("fraction-edge")
+        check("a whole number of inches has no fraction part", g["selA"] == "Line" and g["result"] == '5"', g["result"])
+        s.key(0x1B); s.key(0x1B); s.key("0"); s.key("B"); s.key("I")
+        s.shot("fraction-box-details")
+        s.key("T")
+        s.shot("fraction-box-details-other-theme")
+        s.key("T"); s.key("B"); s.key("I")
+        st = to_units(s, "in", "fraction-decimal-inch")
+        check("decimal inches are still there, one step before fractions", st["sizeText"] == "5.000 × 3.125 × 0.625 in", st["sizeText"])
+        to_units(s, "frac", "fraction-again")
+    finally:
+        s.close()
+
+    s = Session(exe, S("plate-holes.stl"), env, out)
+    try:
+        a = s.shot("fraction-reopened")
+        parts = a["sizeText"].split(" × ")
+        check("the fraction choice is remembered", a["units"] == "frac", a["units"])
+        check("a metric part stays decimal where it is not on a fraction", len(parts) == 3 and parts[0] == '3.1496"' and parts[2] == '0.3937"', a["sizeText"])
+        st = to_units(s, "mm", "fraction-off")
+        check("and reads in millimeters again afterwards", st["sizeText"] == "80.00 × 50.00 × 10.00 mm", st["sizeText"])
+
+        # ── mode options: the second row ──
+        st = to_shading(s, "Shaded", "options-shaded")
+        scale = float(st["scale"])
+        w, h = (int(v) for v in st["size"].split("x"))
+        check("a mode without options has no second row", st["options"] == "" and st["optionRects"] == "", st["options"])
+        s.key("X")
+        x1 = s.shot("section-under-toolbar")
+        sx, sy, sw, sh = (float(v) for v in x1["sliderBox"].split(","))
+        check("the section slider does not cover the toolbar", sy >= 48 * scale or sx >= float(x1["toolbarRight"]), "slider %s, toolbar ends at %s" % (x1["sliderBox"], x1["toolbarRight"]))
+        check("the toast sits under the section slider", x1["toast"] != "" and float(x1["toastY"]) >= sy + sh, "toast at %s" % x1["toastY"])
+        s.key("X"); s.key("X"); s.key("X")
+
+        s.key("0")
+        st = to_shading(s, "Studio", "options-studio")
+        dark = st["dark"] == "True"
+        want = "Light:Soft;Backdrop:%s;Material:Clay;Shadow:On" % ("Dark" if dark else "White")
+        rr = rects(st)
+        check("Studio shows its options in a second row", st["options"] == want and len(rr) == 4, st["options"])
+        check("the row sits under the toolbar, inside the window", all(r[1] >= 48 * scale and r[0] >= 0 and r[0] + r[2] <= w for r in rr), st["optionRects"])
+
+        seen = [opt(st)["Light"]]
+        for i in range(4):
+            press(s, spot(st, 100)); st = s.shot("studio-light-%d" % (i + 1)); seen.append(opt(st)["Light"])
+            if i == 0:
+                rr = rects(st)
+                check("the toast names the option and sits under the row", st["toast"] == "Light  ·  Left" and float(st["toastY"]) >= max(r[1] + r[3] for r in rr),
+                      "%s at %s" % (st["toast"], st["toastY"]))
+        check("the Light button steps through four lights and comes back round", seen == ["Soft", "Left", "Right", "Top", "Soft"], " > ".join(seen))
+
+        seen, edge, chips = [opt(st)["Backdrop"]], {}, {}
+        for i in range(4):
+            press(s, spot(st, 101)); st = s.shot("studio-backdrop-%d" % (i + 1)); seen.append(opt(st)["Backdrop"])
+            edge[seen[-1]] = Image.open(st["png"]).getpixel((w - 12, h // 2))
+            chips[seen[-1]] = st["solidPills"] == "True"
+        fits = ["Dark"] if dark else ["White", "Plain"]             # the backdrops this theme's see-through buttons read well on
+        check("buttons get a solid chip on a backdrop that does not suit the theme", all(chips[n] == (n not in fits) for n in chips),
+              ", ".join("%s %s" % (n, "chip" if chips[n] else "plain") for n in chips))
+        order = ["White", "Grey", "Dark", "Plain"]
+        start = order.index(seen[0])
+        check("the Backdrop button steps through four backdrops", seen == [order[(start + i) % 4] for i in range(5)], " > ".join(seen))
+        lum = {n: sum(p[:3]) / 3 for n, p in edge.items()}
+        check("each backdrop looks the part", lum["Plain"] >= 250 and 200 <= lum["White"] < 250 and 80 <= lum["Grey"] <= 190 and lum["Dark"] <= 60,
+              ", ".join("%s %d" % (n, lum[n]) for n in order))
+
+        seen, face = [opt(st)["Material"]], {}
+        for i in range(4):
+            press(s, spot(st, 102)); st = s.shot("studio-material-%d" % (i + 1)); seen.append(opt(st)["Material"])
+            face[seen[-1]] = sum(Image.open(st["png"]).getpixel((w // 2, h // 2))[:3]) / 3
+        check("the Material button steps through four materials", seen == ["Clay", "White", "Charcoal", "Part color", "Clay"], " > ".join(seen))
+        check("charcoal is dark and white is lighter than clay", face["Charcoal"] < 90 and face["White"] > face["Clay"] > 150,
+              ", ".join("%s %d" % (n, face[n]) for n in face))
+
+        lower = (int(w * 0.05), int(h * 0.35), int(w * 0.95), int(h * 0.9))
+        on = Image.open(st["png"]).crop(lower)
+        press(s, spot(st, 103)); st = s.shot("studio-shadow-off")
+        off = Image.open(st["png"]).crop(lower)
+        check("Shadow off takes the shadow off the ground", opt(st)["Shadow"] == "Off" and ImageChops.difference(on, off).getbbox() is not None)
+        press(s, spot(st, 103)); st = s.shot("studio-shadow-on")
+        back = Image.open(st["png"]).crop(lower)
+        check("Shadow on puts it back exactly", opt(st)["Shadow"] == "On" and ImageChops.difference(on, back).getbbox() is None)
+
+        press(s, spot(st, 100)); st = s.shot("studio-left")                    # leave Light on Left for the next session
+        kept = st["options"]
+        s.key("X")
+        x2 = s.shot("studio-section")
+        sx, sy, sw, sh = (float(v) for v in x2["sliderBox"].split(","))
+        rr = rects(x2)
+        check("the section slider moves under the options row", sy >= max(r[1] + r[3] for r in rr), "slider %s, row %s" % (x2["sliderBox"], x2["optionRects"]))
+        check("and the toast under the slider", float(x2["toastY"]) >= sy + sh, x2["toastY"])
+        s.key("X"); s.key("X"); s.key("X")
+        s.key("I")
+        s.shot("studio-details")
+        s.key("I"); s.key("T")
+        s.shot("studio-other-theme")
+        s.key("T")
+        to_shading(s, "Shaded", "options-leave")
+    finally:
+        s.close()
+
+    s = Session(exe, S("plate-holes.stl"), env, out)
+    try:
+        st = to_shading(s, "Studio", "options-reopened")
+        check("each mode's choices are remembered", opt(st)["Light"] == "Left" and st["options"] == kept, "%s (left as %s)" % (st["options"], kept))
+        press(s, spot(st, 100)); press(s, spot(st, 100)); press(s, spot(st, 100))
+        st = s.shot("options-light-soft")
+        check("Light is back on Soft for the rest of the run", opt(st)["Light"] == "Soft", st["options"])
+        to_shading(s, "Shaded", "options-done")
+    finally:
+        code = s.close()
+    check("options session exits cleanly", code == 0)
+
+    # ── a narrow window, opened with settings written by an older version ──
+    old = os.path.join(out, "data-old")
+    shutil.rmtree(old, ignore_errors=True)
+    os.makedirs(old)
+    with open(os.path.join(old, "settings.ini"), "w") as fh_:
+        fh_.write("width=420\nheight=460\ntheme=light\ninch=1\npictureScale=4\npictureAlpha=0\nseenHint=1\n")
+    s = Session(exe, S("plate-holes.stl"), dict(env, GLANCE_DATA_DIR=old), out)
+    try:
+        a = s.shot("narrow-start")
+        w, h = (int(v) for v in a["size"].split("x"))
+        scale = float(a["scale"])
+        check("the window is as narrow as Glance allows", w <= 420 * scale, a["size"])
+        check("inch=1 from an older version still means inches", a["units"] == "in", a["units"])
+        check("4x pictures from an older version become 4K", a["pictureChoice"] == "4k", a["pictureChoice"])
+        st = to_shading(s, "Studio", "narrow-studio")
+        rr = rects(st)
+        overlap = any(a_[0] < b_[0] + b_[2] and b_[0] < a_[0] + a_[2] and a_[1] < b_[1] + b_[3] and b_[1] < a_[1] + a_[3]
+                      for i, a_ in enumerate(rr) for b_ in rr[i + 1:])
+        check("in a narrow window the options wrap onto more lines", int(st["optionLines"]) >= 2 and len(rr) == 4, "%s lines" % st["optionLines"])
+        check("every option stays inside the window and none overlap", not overlap and all(r[0] >= 0 and r[0] + r[2] <= w for r in rr), st["optionRects"])
+        check("the toast sits under the wrapped rows", st["toast"] != "" and float(st["toastY"]) >= max(r[1] + r[3] for r in rr), st["toastY"])
+        s.key("X")
+        x3 = s.shot("narrow-section")
+        sx, sy, sw, sh = (float(v) for v in x3["sliderBox"].split(","))
+        check("the section slider fits under them", sy >= max(r[1] + r[3] for r in rects(x3)) and sx >= 0 and sx + sw <= w, x3["sliderBox"])
+        check("and the toast under the slider", float(x3["toastY"]) >= sy + sh, x3["toastY"])
+        s.key("X"); s.key("X"); s.key("X"); s.key("U")
+        s.shot("narrow-fractions")
+        s.key("I")
+        s.shot("narrow-details")
+    finally:
+        s.close()
+    ini = open(os.path.join(old, "settings.ini")).read()
+    check("settings are written back in the new form", "units=frac" in ini and "pictureSize=4k" in ini and "inch=" not in ini and "pictureScale" not in ini, ini.replace("\n", " "))
 
 
 def main():
@@ -623,6 +899,7 @@ def main():
 
     inspection_tests(exe, S, env, out)
     units_and_layflat_tests(exe, S, env, out)
+    fraction_and_option_tests(exe, S, env, out)
     update_indicator_tests(exe, S, env, out)
 
     failed = [r for r in results if not r[1]]

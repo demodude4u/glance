@@ -7,12 +7,18 @@ namespace Glance;
 internal static class Settings
 {
     public static int Width, Height;
-    public static bool Maximized, Edges = true, Grid = true, Ortho, SeenHint, Inch;
+    public static bool Maximized, Edges = true, Grid = true, Ortho, SeenHint;
+    public static int Units;                 // lengths are shown in: 0 mm, 1 inches, 2 inches as fractions where they are exact
     public static string Theme = "auto";     // auto | dark | light
     public static int Material = -1;         // -1 = pick for the theme
-    public static int PictureScale = 2;      // pictures are this many times the window's size (1, 2 or 4)
+    public static string PictureSize = "fullhd";   // window | hd | fullhd | qhd | 4k | square (see App.PictureSizes)
     public static bool AutoUpdate = true;    // "autoUpdate=0" stops Glance fetching new versions
     public static bool PictureAlpha;         // saved pictures have a transparent background
+
+    /// <summary>Choices that belong to one shading mode, such as "studio.light=1". Empty until one is made.</summary>
+    public static Dictionary<string, int>? Options;
+    public static int Option(string key, int fallback) => Options != null && Options.TryGetValue(key, out int v) ? v : fallback;
+    public static void SetOption(string key, int value) => (Options ??= new())[key] = value;
 
     static string File => Path.Combine(Loaders.DataDir, "settings.ini");
 
@@ -35,12 +41,17 @@ internal static class Settings
                     case "grid": Grid = v == "1"; break;
                     case "ortho": Ortho = v == "1"; break;
                     case "seenHint": SeenHint = v == "1"; break;
-                    case "inch": Inch = v == "1"; break;
+                    case "inch": if (v == "1") Units = 1; break;                        // written by versions before 1.5
+                    case "units": Units = v == "in" ? 1 : v == "frac" ? 2 : 0; break;
                     case "theme": if (v is "auto" or "dark" or "light") Theme = v; break;
-                    case "pictureScale": if (int.TryParse(v, out int ps) && ps is 1 or 2 or 4) PictureScale = ps; break;
+                    // Before 1.5 a picture was 1, 2 or 4 times the window. 2 was the default, so it becomes the new default;
+                    // a deliberate 1 or 4 becomes the nearest named size.
+                    case "pictureScale": if (v == "1") PictureSize = "window"; else if (v == "4") PictureSize = "4k"; break;
+                    case "pictureSize": PictureSize = v; break;
                     case "autoUpdate": AutoUpdate = v != "0"; break;
                     case "pictureAlpha": PictureAlpha = v == "1"; break;
                     case "material": int.TryParse(v, NumberStyles.Integer, null, out Material); break;
+                    default: if (k.Contains('.') && int.TryParse(v, NumberStyles.Integer, null, out int o)) SetOption(k, o); break;
                 }
             }
         }
@@ -52,13 +63,15 @@ internal static class Settings
         try
         {
             Directory.CreateDirectory(Loaders.DataDir);
-            System.IO.File.WriteAllLines(File,
-            [
+            var lines = new List<string>
+            {
                 $"width={Width}", $"height={Height}", $"maximized={(Maximized ? 1 : 0)}",
                 $"edges={(Edges ? 1 : 0)}", $"grid={(Grid ? 1 : 0)}", $"ortho={(Ortho ? 1 : 0)}",
-                $"seenHint={(SeenHint ? 1 : 0)}", $"inch={(Inch ? 1 : 0)}", $"theme={Theme}", $"material={Material}",
-                $"autoUpdate={(AutoUpdate ? 1 : 0)}", $"pictureScale={PictureScale}", $"pictureAlpha={(PictureAlpha ? 1 : 0)}",
-            ]);
+                $"seenHint={(SeenHint ? 1 : 0)}", $"units={(Units == 1 ? "in" : Units == 2 ? "frac" : "mm")}", $"theme={Theme}", $"material={Material}",
+                $"autoUpdate={(AutoUpdate ? 1 : 0)}", $"pictureSize={PictureSize}", $"pictureAlpha={(PictureAlpha ? 1 : 0)}",
+            };
+            if (Options != null) foreach (var (k, v) in Options) lines.Add($"{k}={v}");
+            System.IO.File.WriteAllLines(File, lines);
         }
         catch { }
     }

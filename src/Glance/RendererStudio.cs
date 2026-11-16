@@ -23,6 +23,7 @@ internal sealed unsafe partial class Renderer
         #version 330 core
         uniform vec3 uBase; uniform float uFlat; uniform float uUseCol; uniform float uOrtho; uniform float uStyle;
         uniform vec4 uCut; uniform sampler2D uDepth; uniform vec4 uProj; uniform vec2 uScreen; uniform float uAoR; uniform float uDark;
+        uniform vec3 uLight; uniform vec4 uLightMix;
         in vec3 vView; in vec3 vNrm; in vec4 vCol; out vec4 o;
 
         // View-space position of whatever the depth pre-pass saw at this screen position.
@@ -74,9 +75,11 @@ internal sealed unsafe partial class Renderer
           vec3 base = mix(uBase, vCol.rgb, vCol.a * uUseCol);
           if (uStyle < 4.5) {
             // Studio: matte clay under a soft sky with one broad light, no highlights.
+            // uLight is where the light is; uLightMix is how much comes from all round, from the sky and from the
+            // light, and how far the light wraps round the part (0 = a hard side light, more = softer).
             float sky = N.y * 0.5 + 0.5;
-            float key = max(dot(N, normalize(vec3(0.40, 0.70, 0.60))) * 0.65 + 0.35, 0.0);
-            vec3 c = base * (0.26 + 0.34 * sky + 0.46 * key);
+            float key = max(dot(N, uLight) * (1.0 - uLightMix.w) + uLightMix.w, 0.0);
+            vec3 c = base * (uLightMix.x + uLightMix.y * sky + uLightMix.z * key);
             vec3 shade = mix(vec3(0.16, 0.15, 0.19), vec3(1.0), open);
             o = vec4(c * shade, 1.0);
           } else {
@@ -126,13 +129,28 @@ internal sealed unsafe partial class Renderer
 
     uint RenderProgram() => _render != 0 ? _render : _render = Program(MeshVs, RenderFs, "aPos", "aNrm", "aCol");
 
-    public void SetStudio(Matrix4x4 proj, bool ortho, float aoRadius, bool dark)
+    int _studioLight;
+
+    /// <param name="light">Studio's light: 0 soft, 1 from the left, 2 from the right, 3 from above.</param>
+    public void SetStudio(Matrix4x4 proj, bool ortho, float aoRadius, bool dark, int light = 0)
     {
-        _studioProj = proj; _studioOrtho = ortho; _aoRadius = aoRadius; _studioDark = dark;
+        _studioProj = proj; _studioOrtho = ortho; _aoRadius = aoRadius; _studioDark = dark; _studioLight = light;
     }
 
     void StudioUniforms(uint p)
     {
+        // Where the light is, as seen from the camera (x right, y up, z towards the viewer), and its mix:
+        // all-round light, sky light, the light itself, and how far it wraps round the part.
+        var (dir, mix) = _studioLight switch
+        {
+            1 => (new Vector3(-0.82f, 0.34f, 0.46f), new Vector4(0.19f, 0.20f, 0.70f, 0.10f)),
+            2 => (new Vector3(0.82f, 0.34f, 0.46f), new Vector4(0.19f, 0.20f, 0.70f, 0.10f)),
+            3 => (new Vector3(0.00f, 0.93f, 0.36f), new Vector4(0.19f, 0.16f, 0.74f, 0.10f)),
+            _ => (new Vector3(0.40f, 0.70f, 0.60f), new Vector4(0.26f, 0.34f, 0.46f, 0.35f)),
+        };
+        dir = Vector3.Normalize(dir);
+        Uniform3f(Loc(p, "uLight"), dir.X, dir.Y, dir.Z);
+        Uniform4f(Loc(p, "uLightMix"), mix.X, mix.Y, mix.Z, mix.W);
         Matrix4x4 m = _studioProj;
         Uniform4f(Loc(p, "uProj"), m.M11, m.M22, m.M33, m.M43);
         Uniform2f(Loc(p, "uScreen"), 1f / _fbW, 1f / _fbH);

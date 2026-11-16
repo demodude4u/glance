@@ -7,7 +7,8 @@ namespace Glance;
 internal static unsafe partial class App
 {
     static bool _measure, _box, _layFlat;
-    static bool _inch { get => Settings.Inch; set => Settings.Inch = value; }
+    static bool _inch => Settings.Units != 0;
+    static bool _frac => Settings.Units == 2;          // inches, written as fractions where the length is one
     static Entity? _hover, _selA, _selB;
     static Measurement? _result;
     static bool _hoverDirty, _moved;
@@ -19,13 +20,45 @@ internal static unsafe partial class App
     static float _pillRight;
     static int _hotButton = -1;
     static readonly List<(float X, float Y, float W, float H, int Action)> _buttons = new();
-    static (float X, float Y, float W, float H) _slider;
+    static (float X, float Y, float W, float H) _slider, _sliderBox;       // the slider's track, and the whole pill it sits in
 
     // ───────────────────────── Units ─────────────────────────
 
     static string UnitName => _inch ? "in" : "mm";
-    static string Bare(double mm) => _inch ? (mm / 25.4).ToString("#,0.000#") : mm.ToString("#,0.00#");
-    static string Len(double mm) => Bare(mm) + " " + UnitName;
+    static string UnitButton => _frac ? "in 1/64" : UnitName;
+
+    // Fraction mode only ever shows a fraction for a length that really is one: within half a thousandth of an
+    // inch of a 64th. Anything else stays decimal, so 1 3/8" on screen means the part is 1 3/8".
+    const double FractionTolerance = 0.0005;
+
+    /// <summary>Inches as a reduced fraction ("1 3/8", "5/16", "2"), or null when the length is not on a 64th.</summary>
+    static string? Fraction(double inches)
+    {
+        double n = Math.Round(inches * 64);
+        if (!(Math.Abs(inches - n / 64) <= FractionTolerance) || Math.Abs(n) > 1e12) return null;
+        long k = (long)Math.Abs(n), whole = k / 64, num = k % 64, den = 64;
+        while (num != 0 && (num & 1) == 0) { num >>= 1; den >>= 1; }
+        string s = num == 0 ? whole.ToString("#,0") : whole == 0 ? $"{num}/{den}" : $"{whole:#,0} {num}/{den}";
+        return n < 0 ? "-" + s : s;
+    }
+
+    static string Bare(double mm) => !_inch ? mm.ToString("#,0.00#")
+        : _frac && Fraction(mm / 25.4) is string f ? f : (mm / 25.4).ToString("#,0.000#");
+    static string Len(double mm) => _frac ? Bare(mm) + "\"" : Bare(mm) + " " + UnitName;
+    /// <summary>Three lengths side by side: one unit at the end, or an inch mark on each when fractions are on.</summary>
+    static string Len3(double x, double y, double z, string gap = " × ") =>
+        _frac ? Len(x) + gap + Len(y) + gap + Len(z) : Bare(x) + gap + Bare(y) + gap + Bare(z) + " " + UnitName;
+
+    static void CycleUnits()
+    {
+        Settings.Units = (Settings.Units + 1) % 3;
+        Toast(Settings.Units switch
+        {
+            1 => "Showing inches",
+            2 => "Showing inches  ·  as fractions (to 1/64) where the size is exactly one",
+            _ => "Showing millimeters",
+        }, Settings.Units == 2 ? 2.6f : 1.6f);
+    }
     static string AreaText(double mm2) => _inch ? (mm2 / 645.16).ToString("#,0.000") + " in²" : mm2.ToString("#,0.0#") + " mm²";
     static string VolumeText(double mm3) => _inch ? (mm3 / 16387.064).ToString("#,0.000") + " in³" : mm3.ToString("#,0") + " mm³";
     static string Deg(double a) => a.ToString("0.0#") + "°";
@@ -168,7 +201,7 @@ internal static unsafe partial class App
         for (int i = 0; i < units.Length; i++)
         {
             Vector3 d = raw * Loaders.UnitToMm(units[i]);
-            sizes[i] = $"{Bare(d.X)} × {Bare(d.Y)} × {Bare(d.Z)} {UnitName}";
+            sizes[i] = Len3(d.X, d.Y, d.Z);
             nameW = MathF.Max(nameW, U.Measure(U.Medium, Proper(Loaders.UnitLabel(units[i]))));
             sizeW = MathF.Max(sizeW, U.Measure(U.Body, sizes[i]));
         }
@@ -253,7 +286,8 @@ internal static unsafe partial class App
     /// <summary>The headline value of one feature on its own.</summary>
     static string Single(Entity e) => e.Kind switch
     {
-        Kind.Point => $"X {Bare(e.Pick.X)}   Y {Bare(e.Pick.Y)}   Z {Bare(e.Pick.Z)} {UnitName}",
+        Kind.Point => _frac ? $"X {Len(e.Pick.X)}   Y {Len(e.Pick.Y)}   Z {Len(e.Pick.Z)}"
+            : $"X {Bare(e.Pick.X)}   Y {Bare(e.Pick.Y)}   Z {Bare(e.Pick.Z)} {UnitName}",
         Kind.Line or Kind.Curve => Len(e.Length),
         Kind.Circle => "Ø " + Len(e.Radius * 2),
         Kind.Cylinder => e.Full ? "Ø " + Len(e.Radius * 2) : "R " + Len(e.Radius),
@@ -295,13 +329,14 @@ internal static unsafe partial class App
                 case 0: _layFlat = false; ToggleMeasure(); break;
                 case 1: CycleSection(); break;
                 case 2: _box = !_box; break;
-                case 3: _inch = !_inch; break;
+                case 3: CycleUnits(); break;
                 case 4: _sectionFlip = !_sectionFlip; _hoverDirty = _measure; break;
                 case 5: ToggleFixUnits(); break;
                 case 6: ToggleLayFlat(); break;
                 case 7: ToggleOrtho(); break;
                 case 8: CycleShading(); break;
                 case 9: TogglePicture(); break;
+                case >= 100: CycleOption(b.Action - 100); break;
             }
             Invalidate();
             return true;
@@ -332,7 +367,7 @@ internal static unsafe partial class App
 
     static void Toolbar(float s, float m)
     {
-        string[] labels = ["Measure", _section == 0 ? "Section" : "Section " + "XYZ"[_section - 1], "Box", "Lay flat", "Ortho", ShadingName, UnitName];
+        string[] labels = ["Measure", _section == 0 ? "Section" : "Section " + "XYZ"[_section - 1], "Box", "Lay flat", "Ortho", ShadingName, UnitButton];
         bool[] on = [_measure, _section != 0, _box, _layFlat, _ortho, false, false];
         int[] actions = [0, 1, 2, 6, 7, 8, 3];
         float x = m, y = m, h = 32 * s, pad = 14 * s, gap = 6 * s;
@@ -343,11 +378,7 @@ internal static unsafe partial class App
             bool hot = _drag == 0 && _mouseX >= x && _mouseX <= x + w && _mouseY >= y && _mouseY <= y + h;
             if (hot) _hotButton = i;
             if (on[i]) U.Rect(x, y, w, h, h / 2, _theme.Accent);
-            else
-            {
-                U.Rect(x, y, w, h, h / 2, hot ? new Vector4(_theme.Panel.X, _theme.Panel.Y, _theme.Panel.Z, _theme.Panel.W * 2.2f) : _theme.Panel);
-                U.Rect(x, y, w, h, h / 2, _theme.PanelBorder, 1);
-            }
+            else Pill(x, y, w, h, hot);
             U.Text(U.Medium, labels[i], x + pad, y + (h - U.Medium.Height) / 2, on[i] ? AccentInk : _theme.Text);
             _buttons.Add((x, y, w, h, actions[i]));
             x += w + gap;
@@ -363,8 +394,8 @@ internal static unsafe partial class App
             x += gap * 2;
             bool hot = _drag == 0 && _mouseX >= x && _mouseX <= x + w && _mouseY >= y && _mouseY <= y + h;
             if (hot) _hotButton = 5;
-            U.Rect(x, y, w, h, h / 2, hot ? new Vector4(_theme.Panel.X, _theme.Panel.Y, _theme.Panel.Z, _theme.Panel.W * 2.2f) : _theme.Panel);
-            U.Rect(x, y, w, h, h / 2, guess ? _theme.Accent : _theme.PanelBorder, guess ? 1.5f * s : 1);
+            Pill(x, y, w, h, hot);
+            if (guess) U.Rect(x, y, w, h, h / 2, _theme.Accent, 1.5f * s);
             U.Text(U.Medium, label, x + pad, y + (h - U.Medium.Height) / 2, _theme.Text);
             _buttons.Add((x, y, w, h, 5));
             _toolbarRight = x + w;
@@ -376,8 +407,13 @@ internal static unsafe partial class App
         string label = $"{"XYZ"[_section - 1]}  {Len(SectionCoordinate())}";
         float track = MathF.Min(260 * s, _w * 0.3f), pad = 16 * s, h = 34 * s, flipW = U.Measure(U.Medium, "Flip") + 22 * s;
         float lw = U.Measure(U.Medium, "X  " + Len(-8888.888)) + 6 * s;
+        if (_frac) lw = MathF.Max(lw, U.Measure(U.Medium, "X  -888 63/64\"") + 6 * s);
         float w = pad + lw + track + pad + flipW + 6 * s;
         float x = (_w - w) / 2, y = m;
+        // Beside the toolbar when there is room for it there; otherwise under the toolbar and the mode's options.
+        bool beside = x >= _toolbarRight + 12 * s && (_picButton.W <= 0 || x + w <= _picButton.X - 12 * s);
+        if (!beside) y = _optBottom + 8 * s;
+        _sliderBox = (x, y, w, h);
         U.Rect(x, y + 2 * s, w, h, h / 2, new Vector4(0, 0, 0, _theme.Dark ? 0.22f : 0.08f));
         U.Rect(x, y, w, h, h / 2, _theme.Card);
         U.Rect(x, y, w, h, h / 2, _theme.PanelBorder, 1);

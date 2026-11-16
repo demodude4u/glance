@@ -64,13 +64,16 @@ internal static unsafe partial class App
                 if (Environment.GetEnvironmentVariable("GLANCE_TEST_DIR") != null) CycleFileUnit();      // test hook: step to the next unit
                 return true;
 
-            case WM_APP + 5:        // test hook: save a picture without the dialog. wp bit 0 = transparent, wp >> 1 = size factor (0 = as set)
+            case WM_APP + 5:        // test hook: save a picture without the dialog, with the size and background as they are set
                 if (Environment.GetEnvironmentVariable("GLANCE_TEST_DIR") is string shots && _mesh != null)
                 {
-                    if (wp != 0) { Settings.PictureAlpha = (wp & 1) != 0; if ((int)(wp >> 1) is 1 or 2 or 4) Settings.PictureScale = (int)(wp >> 1); }
                     SavePicture(Path.Combine(shots, "export.png"), wait: true);
                     Invalidate();
                 }
+                return true;
+
+            case WM_APP + 6:        // test hook: pretend the graphics card cannot draw a picture larger than wp pixels (0 = ask it)
+                if (Environment.GetEnvironmentVariable("GLANCE_TEST_DIR") != null) { _testMax = (int)wp; Invalidate(); }
                 return true;
 
             case WM_APP + 4:
@@ -98,7 +101,8 @@ internal static unsafe partial class App
                     if (_drag != 1 || Seconds(_lastMove) > 0.07) _velYaw = _velPitch = 0;
                     bool click = _drag == 1 && !_moved && msg == WM_LBUTTONUP;
                     _drag = 0; ReleaseCapture(); Invalidate();
-                    if (click && _layFlat) LayFlatAt(mx, my);
+                    if (click && _picture) _picture = false;             // a click on the view closes the Picture card; a drag turns the model
+                    else if (click && _layFlat) LayFlatAt(mx, my);
                     else if (click && _measure) ClickMeasure(mx, my);
                 }
                 return true;
@@ -111,7 +115,7 @@ internal static unsafe partial class App
                 if (OverUpdate(mx, my) != _updHot) { _updHot = !_updHot; Invalidate(); }
                 if (_drag == 3) { DragSlider(mx); return true; }
                 if (_drag != 0 && _mesh != null) Drag(mx, my);
-                else if (_mesh != null && (_measure || _layFlat || _fixUnits || _picture || my < 64 * _scale || _hotButton >= 0)) { _hoverDirty = _measure || _layFlat; Invalidate(); }
+                else if (_mesh != null && (_measure || _layFlat || _fixUnits || _picture || my < MathF.Max(64 * _scale, _optBottom + 16 * _scale) || _hotButton >= 0)) { _hoverDirty = _measure || _layFlat; Invalidate(); }
                 return true;
 
             case WM_LBUTTONDBLCLK:
@@ -235,7 +239,7 @@ internal static unsafe partial class App
             case 'B': _box = !_box; Toast(_box ? "Bounding box on" : "Bounding box off"); break;
             case 'U':
                 if (KeyDown(VK_SHIFT)) { ToggleFixUnits(); break; }
-                _inch = !_inch; Settings.Inch = _inch; Toast(_inch ? "Showing inches" : "Showing millimeters");
+                CycleUnits();
                 break;
             case 0x70 or 'H' or 0xBF or '?': _help = !_help; break;
             case 'F' or 0x24: Fit(); break;

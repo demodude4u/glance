@@ -9,7 +9,8 @@ screen before you have let go of the mouse.
   so a file you have opened before comes back as fast as an STL. While you look at one model, Glance quietly
   prepares the other STEP files in the same folder.
 - **Built for parts.** Click a hole to read its diameter, two faces for the distance or angle between them,
-  an edge for its length. Section cut, bounding-box dimensions, mm / inch, area, volume and a watertight check.
+  an edge for its length. Section cut, bounding-box dimensions, mm / inch / inch fractions, area, volume and a
+  watertight check.
 - **Simple.** One window, four buttons. Press **F1** for the handful of keys.
 
 ## Using it
@@ -23,7 +24,7 @@ screen before you have let go of the mouse.
 | F | Fit to window |
 | 1 – 6, 0 | Front, back, left, right, top, bottom, isometric |
 | P | Perspective / orthographic (also the **Ortho** button) |
-| V | Shading: Shaded, Smooth, Studio, Metal, Lines, X-ray, Wire, Overhangs (also the toolbar button; Shift+V goes back) |
+| V | Shading: Shaded, Smooth, Studio, Metal, Lines, X-ray, Wire, Overhangs (also the toolbar button; Shift+V goes back). A mode with options shows them in a second row under the toolbar |
 | Ctrl+S | Save a picture as PNG (the **Picture** button sets size and background) |
 | E, W, S, G | Edges, wireframe, smooth / flat shading, grid |
 | C, T | Color, light / dark |
@@ -32,7 +33,7 @@ screen before you have let go of the mouse.
 | X | Section cut along X, then Y, Z, off. Drag the slider or Ctrl+scroll to move it; Shift+X or **Flip** swaps sides |
 | B | Bounding-box dimensions on the model |
 | L | Lay flat: click a face and the model turns to rest on it (Z puts it back) |
-| U | Show millimeters / inches |
+| U | Show millimeters, inches, or inches as fractions (also the toolbar button) |
 | Shift+U | STL / OBJ only: Fix units, choose what unit the file's numbers are in |
 | I | Details: size, triangles, surface area, volume, watertight |
 | ← → | Previous / next model in the folder |
@@ -65,11 +66,25 @@ recognised as a circle.
 ### Pictures
 
 The **Picture** button (top right) copies or saves the current view without the toolbar, readouts or cards.
-Size is 1, 2 or 4 times the window (a 4× picture of a full-HD window is 7680 × 4320), and the background is
-either as shown or transparent, for dropping onto a slide or a document. **Ctrl+C** copies and **Ctrl+S** saves with
-the last settings. For presentation pictures, choose the **Studio** or **Metal** look first: both replace the grid and
-working background with a plain backdrop and add soft shadows. The clipboard has no transparency, so a copied
-picture always has a background.
+Choose a size by name: **Window** (exactly what the window shows), **HD** 1280 × 720, **Full HD** 1920 × 1080,
+**QHD** 2560 × 1440, **4K** 3840 × 2160 or **Square** 2048 × 2048. The named sizes have their own shape, so while
+the card is open the window dims everything outside a frame: what is inside the frame is the picture. Scroll,
+drag and right-drag still move the model, to place it in the frame; a click on the view closes the card. If the
+graphics card cannot draw a size, the picture is made as large as it can in the same shape and the card says so.
+The background is either as shown or transparent, for dropping onto a slide or a document. **Ctrl+C** copies and
+**Ctrl+S** saves with the last settings, showing the frame for a moment. For presentation pictures, choose the **Studio** or **Metal** look first:
+both replace the grid and working background with a plain backdrop and add soft shadows. The clipboard has no
+transparency, so a copied picture always has a background.
+
+### Mode options
+
+Some shading modes have options of their own. While such a mode is on, they appear as a second row of smaller
+buttons under the toolbar; each button shows its current choice and steps to the next one when clicked. The
+choices are remembered for that mode.
+
+| Mode | Options |
+|---|---|
+| Studio | **Light**: Soft, Left, Right, Top. **Backdrop**: White, Grey, Dark, Plain (flat white, easy to cut out). **Material**: Clay, White, Charcoal, Part color (the file's colors, or the color chosen with C). **Shadow**: the shadow on the ground, on or off |
 
 ### Units
 
@@ -79,6 +94,12 @@ guess: a part whose largest dimension is under 6 is read as inches, anything els
 changed the size rings the **Fix units** button on the toolbar. Click it (or press **Shift+U**) to see how big the
 part would be in millimeters, inches, centimeters, meters and feet, and pick the one that looks right; the choice is
 remembered for that file.
+
+Lengths are shown in millimeters, decimal inches, or inch fractions: the units button (or **U**) steps through
+the three. With fractions on, a length is written as a fraction only when it really is one: within 0.0005 in of
+a 64th, reduced, such as 1 3/8", 5/16" or 2". Anything else stays decimal (5.8962"), so a fraction on screen
+means the part is that size. This applies to the size read-out, bounding-box dimensions, measurements and the
+details card; areas, volumes and angles are unchanged.
 
 ## Install
 
@@ -129,7 +150,7 @@ publish a release in the repository can publish an update.
    `version.txt`. Both names matter: installed copies fetch exactly those from the latest release, so an update
    goes out to everyone the moment the release is published. Mark a release as a pre-release to hold it back.
 
-The version shows in Glance's title bar, in the help card (F1) as "Version 1.4.0 (commit)", in the installer's title bar, in the file
+The version shows in Glance's title bar, in the help card (F1) as "Version 1.5.0 (commit)", in the installer's title bar, in the file
 properties of both programs and under Settings > Apps > Installed apps. Use the third number for fixes, the second
 for new features.
 
