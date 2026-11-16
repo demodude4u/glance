@@ -252,7 +252,7 @@ internal static unsafe partial class App
             case '6': SetView(Front, -MathF.PI / 2); Toast("Bottom"); break;
             case 'P': ToggleOrtho(); break;
             case 'V': if (_mesh != null) CycleShading(KeyDown(VK_SHIFT)); break;
-            case 'E': _edges = !_edges; Toast(_edges ? "Edges on" : "Edges off"); break;
+            case 'E': ToggleEdges(); Toast(_edges ? "Edges on" : "Edges off"); break;
             case 'W': _wire = !_wire; Toast(_wire ? "Wireframe on" : "Wireframe off"); break;
             case 'G': _grid = !_grid; Toast(_grid ? "Grid on" : "Grid off"); break;
             case 'R': _spin = !_spin; _velYaw = _velPitch = 0; Toast(_spin ? "Turntable" : "Turntable off"); break;
@@ -282,10 +282,8 @@ internal static unsafe partial class App
             case 'C':
                 if (ctrl) { CopyImage(); break; }
                 if (_mesh == null) break;
-                if (R.HasColors && _fileColors) { _fileColors = false; Settings.Material = 0; }
-                else if (R.HasColors && MaterialIndex == Theme.Materials.Length - 1) { _fileColors = true; Toast("Original colors"); break; }
-                else Settings.Material = (MaterialIndex + 1) % Theme.Materials.Length;
-                Toast(Theme.Materials[MaterialIndex].Name);
+                StepColor();
+                Toast(_fileColors && R.HasColors ? "Original colors" : Theme.Materials[MaterialIndex].Name);
                 break;
             default: return;
         }

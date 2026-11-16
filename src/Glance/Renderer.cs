@@ -11,7 +11,7 @@ internal sealed unsafe partial class Renderer
     int _meshVerts, _meshIdx; bool _hasNrm, _hasCol;
     uint _edgeVao, _edgeVbo; int _edgeVerts;
     uint _hiIbo;
-    const uint CLIP_DISTANCE0 = 0x3000;
+    const uint CLIP_DISTANCE0 = 0x3000, GREATER = 0x0204;
     uint _fbo, _rbColor, _rbDepth; int _fbW, _fbH, _samples = 4;
 
     public bool HasMesh => _meshVerts > 0;
@@ -52,7 +52,7 @@ internal sealed unsafe partial class Renderer
     const string MeshFs = """
         #version 330 core
         uniform vec3 uBase; uniform float uFlat; uniform float uUseCol; uniform float uOrtho; uniform float uRim;
-        uniform vec4 uCut; uniform float uStyle; uniform vec4 uUp; uniform float uEps;
+        uniform vec4 uCut; uniform float uStyle; uniform vec4 uUp; uniform float uEps; uniform vec4 uMode;
         in vec3 vView; in vec3 vNrm; in vec4 vCol; out vec4 o;
         void main(){
           if (uCut.a > 0.5 && !gl_FrontFacing) {
@@ -80,14 +80,16 @@ internal sealed unsafe partial class Renderer
             o = vec4(uBase * (0.94 + 0.06 * key), 1.0);
           } else if (uStyle > 1.5 && uStyle < 2.5) {
             // X-ray: glass that thickens toward its silhouette, so inner features show through.
+            // uMode.x is how solid it is face-on, uMode.y how much more at the silhouette.
             float edge = pow(1.0 - max(dot(N, V), 0.0), 1.6);
-            o = vec4(c + spec, 0.10 + 0.50 * edge);
+            o = vec4(c + spec, uMode.x + uMode.y * edge);
           } else if (uStyle > 2.5) {
-            // Overhangs: faces that lean more than 45 degrees past vertical and are not resting on the ground.
+            // Overhangs: faces that lean further past vertical than the limit (uMode.x is the sine of that angle,
+            // 0.7071 for 45 degrees) and are not resting on the ground.
             float down = dot(normalize(Out), -uUp.xyz);
             float height = dot(vView, uUp.xyz) - uUp.w;
-            float t = smoothstep(0.7071, 0.7171, down) * step(uEps, height);
-            vec3 warn = mix(vec3(1.0, 0.757, 0.027), vec3(0.86, 0.20, 0.13), smoothstep(0.7071, 1.0, down));
+            float t = smoothstep(uMode.x, uMode.x + 0.01, down) * step(uEps, height);
+            vec3 warn = mix(vec3(1.0, 0.757, 0.027), vec3(0.86, 0.20, 0.13), smoothstep(uMode.x, 1.0, down));
             vec3 calm = vec3(dot(c, vec3(0.3, 0.59, 0.11))) * 0.92 + 0.04;
             o = vec4(mix(calm, warn * (0.72 + 0.28 * (0.5 + 0.5 * N.z)), t), 1.0);
           } else {
@@ -282,8 +284,12 @@ internal sealed unsafe partial class Renderer
         glDepthMask(1);
     }
 
+    /// <param name="mode">Extra numbers for the style: X-ray's opacity (face-on, extra at the silhouette), the overhang limit (its sine).</param>
+    /// <param name="hidden">Above 0, edges behind the part are drawn too, this faint (a drawing's hidden lines).</param>
+    /// <param name="noFill">Nothing is filled in: only the lines are drawn, including the ones behind.</param>
     public void Model(Matrix4x4 mv, Matrix4x4 mvp, Vector3 baseColor, bool useFileColors, bool ortho, float rim,
-        bool edges, bool wire, Vector4 edgeColor, float lineWidth, Vector4? clip, Vector3 cutColor, int style = 0, Vector4 up = default, float eps = 0)
+        bool edges, bool wire, Vector4 edgeColor, float lineWidth, Vector4? clip, Vector3 cutColor, int style = 0, Vector4 up = default, float eps = 0,
+        Vector4 mode = default, float hidden = 0, bool noFill = false)
     {
         if (_meshVerts == 0) return;
         bool xray = style == 2;
@@ -304,12 +310,13 @@ internal sealed unsafe partial class Renderer
         Uniform1f(Loc(prog, "uStyle"), style);
         Uniform4f(Loc(prog, "uUp"), up.X, up.Y, up.Z, up.W);
         Uniform1f(Loc(prog, "uEps"), eps);
+        Uniform4f(Loc(prog, "uMode"), mode.X, mode.Y, mode.Z, mode.W);
         Clip(prog, clip);
         if (style >= 4) StudioUniforms(prog);
         BindVertexArray(_meshVao);
-        DrawGeometry();
+        if (!noFill) DrawGeometry();
         glDisable(POLYGON_OFFSET_FILL);
-        if (xray) { glDepthMask(1); glDisable(DEPTH_TEST); }       // every edge shows, including the ones behind
+        if (xray || noFill) { glDepthMask(1); glDisable(DEPTH_TEST); }       // every edge shows, including the ones behind
 
         if (!edges && !wire) { glDisable(CLIP_DISTANCE0); glEnable(DEPTH_TEST); return; }
         glEnable(BLEND); BlendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE, ONE_MINUS_SRC_ALPHA);
@@ -329,6 +336,14 @@ internal sealed unsafe partial class Renderer
             Uniform4f(Loc(_line, "uColor"), edgeColor.X, edgeColor.Y, edgeColor.Z, edgeColor.W);
             BindVertexArray(_edgeVao);
             glDrawArrays(LINES, 0, _edgeVerts);
+            if (hidden > 0 && !xray && !noFill)
+            {
+                // The same edges again, but only where something is in front of them.
+                Uniform4f(Loc(_line, "uColor"), edgeColor.X, edgeColor.Y, edgeColor.Z, edgeColor.W * hidden);
+                glDepthFunc(GREATER);
+                glDrawArrays(LINES, 0, _edgeVerts);
+                glDepthFunc(LEQUAL);
+            }
         }
         glDisable(CLIP_DISTANCE0);
         glDepthMask(1);

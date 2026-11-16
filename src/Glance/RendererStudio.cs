@@ -23,7 +23,7 @@ internal sealed unsafe partial class Renderer
         #version 330 core
         uniform vec3 uBase; uniform float uFlat; uniform float uUseCol; uniform float uOrtho; uniform float uStyle;
         uniform vec4 uCut; uniform sampler2D uDepth; uniform vec4 uProj; uniform vec2 uScreen; uniform float uAoR; uniform float uDark;
-        uniform vec3 uLight; uniform vec4 uLightMix;
+        uniform vec3 uLight; uniform vec4 uLightMix; uniform float uSurface;
         in vec3 vView; in vec3 vNrm; in vec4 vCol; out vec4 o;
 
         // View-space position of whatever the depth pre-pass saw at this screen position.
@@ -86,7 +86,25 @@ internal sealed unsafe partial class Renderer
             // Metal: mostly a reflection of the studio, slightly softened, brighter at grazing angles.
             float nv = max(dot(N, V), 0.0);
             vec3 R = reflect(-V, N);
-            vec3 env = mix(studio(R), studio(normalize(R + N * 0.7)), 0.45);
+            vec3 env;
+            if (uSurface < 0.5) {
+              // Polished: a crisp reflection.
+              env = mix(studio(R), studio(normalize(R + N * 0.7)), 0.10);
+            } else if (uSurface < 1.5) {
+              // Satin: the reflection slightly softened.
+              env = mix(studio(R), studio(normalize(R + N * 0.7)), 0.45);
+            } else {
+              // Matte: the reflection spread wide, as on a blasted surface.
+              vec3 B = normalize(R + N * 0.9);
+              vec3 t1 = normalize(cross(B, abs(B.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+              vec3 t2 = cross(B, t1);
+              env = studio(B);
+              for (int i = 0; i < 8; i++) {
+                float a = 0.7853982 * float(i);
+                env += studio(normalize(B + (cos(a) * t1 + sin(a) * t2) * 0.8));
+              }
+              env /= 9.0;
+            }
             vec3 F = base + (vec3(1.0) - base) * pow(1.0 - nv, 5.0);
             vec3 c = env * F * mix(0.22, 1.0, open) + base * 0.04;
             o = vec4(c, 1.0);
@@ -129,12 +147,13 @@ internal sealed unsafe partial class Renderer
 
     uint RenderProgram() => _render != 0 ? _render : _render = Program(MeshVs, RenderFs, "aPos", "aNrm", "aCol");
 
-    int _studioLight;
+    int _studioLight, _metalSurface = 1;
 
     /// <param name="light">Studio's light: 0 soft, 1 from the left, 2 from the right, 3 from above.</param>
-    public void SetStudio(Matrix4x4 proj, bool ortho, float aoRadius, bool dark, int light = 0)
+    /// <param name="surface">Metal's finish: 0 polished, 1 satin, 2 matte.</param>
+    public void SetStudio(Matrix4x4 proj, bool ortho, float aoRadius, bool dark, int light = 0, int surface = 1)
     {
-        _studioProj = proj; _studioOrtho = ortho; _aoRadius = aoRadius; _studioDark = dark; _studioLight = light;
+        _studioProj = proj; _studioOrtho = ortho; _aoRadius = aoRadius; _studioDark = dark; _studioLight = light; _metalSurface = surface;
     }
 
     void StudioUniforms(uint p)
@@ -151,6 +170,7 @@ internal sealed unsafe partial class Renderer
         dir = Vector3.Normalize(dir);
         Uniform3f(Loc(p, "uLight"), dir.X, dir.Y, dir.Z);
         Uniform4f(Loc(p, "uLightMix"), mix.X, mix.Y, mix.Z, mix.W);
+        Uniform1f(Loc(p, "uSurface"), _metalSurface);
         Matrix4x4 m = _studioProj;
         Uniform4f(Loc(p, "uProj"), m.M11, m.M22, m.M33, m.M43);
         Uniform2f(Loc(p, "uScreen"), 1f / _fbW, 1f / _fbH);

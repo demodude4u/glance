@@ -622,10 +622,12 @@ internal static unsafe partial class App
     {
         if (_w <= 0 || _h <= 0) return;
         bool studio = _style >= 4 && _mesh != null && R.HasMesh;
-        // Studio's own options (light, backdrop, material, ground shadow). Metal keeps the look it has always had.
-        bool clay = studio && _style == 4;
-        int light = clay ? StudioLook.Light.Value : 0, backdrop = clay ? StudioLook.Backdrop.Value : _theme.Dark ? 2 : 0;
-        bool ground = !clay || StudioLook.Shadow.Value == 1;
+        // Each mode's own options (see AppOptions.cs). Only the mode that is on is asked, so the others are never set up.
+        int light = 0, surface = 1, backdrop = 0;
+        bool ground = true;
+        if (studio && _style == 4) { light = StudioLook.Light.Value; backdrop = StudioLook.Backdrop.Value; ground = StudioLook.Shadow.Value == 1; }
+        else if (studio) { surface = MetalLook.Surface.Value; backdrop = MetalLook.Backdrop.Value; ground = MetalLook.Shadow.Value == 1; }
+        bool drawing = _style == 1 && _mesh != null && R.HasMesh;      // Lines: a drawing on its own paper
         float floorZ = _wMin.Z - _radius * 0.002f, floorExtent = _radius * 2.4f;
         if (studio)
         {
@@ -642,13 +644,18 @@ internal static unsafe partial class App
                 var above = new Matrix4x4(1 / floorExtent, 0, 0, 0, 0, 1 / floorExtent, 0, 0, 0, 0, 0, 0, -_center.X / floorExtent, -_center.Y / floorExtent, 0, 1);
                 R.ShadowMap(sm * above, sclip);
             }
-            R.SetStudio(sp, _ortho, _radius * 0.20f, _theme.Dark, light);
+            R.SetStudio(sp, _ortho, _radius * 0.20f, _theme.Dark, light, surface);
         }
         R.Begin(_w, _h, _shotAlpha);
         if (_shotAlpha) { }
         else if (studio)        // a plain studio backdrop instead of the working background
         {
-            var (center, rim) = StudioLook.BackdropColors(backdrop);
+            var (center, rim) = BackdropColors(backdrop);
+            R.Background(center, rim, _w / (float)_h);
+        }
+        else if (drawing)
+        {
+            var (center, rim) = LinesLook.Sheet;
             R.Background(center, rim, _w / (float)_h);
         }
         else R.Background(_theme.BgCenter, _theme.BgEdge, _w / (float)_h);
@@ -659,22 +666,32 @@ internal static unsafe partial class App
             Vector3 mat = Theme.Materials[MaterialIndex].Color;
             bool useCol = _fileColors && R.HasColors;
             if (_style == 4) StudioLook.Apply(ref mat, ref useCol);
-            else if (_style == 5) { mat = new Vector3(0.80f, 0.82f, 0.85f); useCol = false; }          // aluminum
+            else if (_style == 5) { mat = MetalLook.Color; useCol = false; }
             float lum = useCol ? 0.6f : mat.X * 0.3f + mat.Y * 0.59f + mat.Z * 0.11f;
             Vector4 edge = lum > 0.32f ? new Vector4(0.05f, 0.06f, 0.08f, 0.62f) : new Vector4(1, 1, 1, 0.42f);
             Matrix4x4 mvp = mv * proj;
             _mvp = mvp;
             Vector4? clip = ClipPlane();
+            float lineWidth = (_scale >= 1.75f ? 1.6f : 1.1f) * _shotK, hidden = 0;
+            Vector4 mode = default;     // what the mesh shader needs for the style: X-ray's glass, the overhang limit
+            bool edges = _edges, wire = _wire, noFill = false;
             if (_style == 1)            // Lines: paper and ink, whatever the material
             {
-                mat = _theme.Dark ? new Vector3(0.16f, 0.17f, 0.19f) : new Vector3(0.97f, 0.97f, 0.97f); useCol = false;
-                edge = _theme.Dark ? new Vector4(1, 1, 1, 0.80f) : new Vector4(0.05f, 0.06f, 0.08f, 0.90f);
+                mat = LinesLook.Fill; useCol = false; edge = LinesLook.Ink;
+                if (LinesLook.Hidden.Value == 1) hidden = 0.26f;
+                if (LinesLook.Weight.Value == 1) lineWidth *= 2;
             }
-            else if (_style == 2) edge.W *= 0.55f;
+            else if (_style == 2) { edge.W *= 0.55f; mode = new Vector4(XrayLook.Glass, 0, 0); }
+            else if (_style == 3) mode.X = MathF.Sin(OverhangLook.Degrees * MathF.PI / 180);
+            else if (FeatureWire)       // Wire, feature edges only: nothing filled in, every real edge showing
+            {
+                noFill = true; wire = false; edges = true;
+                edge = _theme.Dark ? new Vector4(1, 1, 1, 0.80f) : new Vector4(0.05f, 0.06f, 0.08f, 0.85f);
+            }
             Vector3 upView = Vector3.TransformNormal(Vector3.UnitZ, view);
-            R.Model(mv, mvp, mat, useCol, _ortho, _theme.Dark ? 0.10f : 0.05f, _edges, _wire, edge, (_scale >= 1.75f ? 1.6f : 1.1f) * _shotK,
+            R.Model(mv, mvp, mat, useCol, _ortho, _theme.Dark ? 0.10f : 0.05f, edges, wire, edge, lineWidth,
                 clip, _theme.Dark ? new Vector3(0.36f, 0.42f, 0.50f) : new Vector3(0.62f, 0.68f, 0.76f),
-                _style, new Vector4(upView, _wMin.Z - eye.Z), _radius * 0.004f);
+                _style, new Vector4(upView, _wMin.Z - eye.Z), _radius * 0.004f, mode, hidden, noFill);
             _vp = vp;
             if (hud && (_measure || _layFlat))
             {
@@ -691,8 +708,9 @@ internal static unsafe partial class App
             {
                 float gz = _wMin.Z - _radius * 0.002f;
                 bool below = eye.Z < gz;
-                Vector4 gc = _theme.Grid; if (below) gc.W *= 0.5f;
-                R.Grid(vp, new Vector3(_center.X, _center.Y, gz), _radius, GridStep(), gc, below ? 0 : _theme.Shadow);
+                Theme on = drawing ? LinesLook.Ground : _theme;          // a drawing's grid has to read on its paper
+                Vector4 gc = on.Grid; if (below) gc.W *= 0.5f;
+                R.Grid(vp, new Vector3(_center.X, _center.Y, gz), _radius, GridStep(), gc, below ? 0 : on.Shadow);
             }
         }
         if (!toWindow) return;

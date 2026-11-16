@@ -661,7 +661,7 @@ def fraction_and_option_tests(exe, S, env, out):
         st = to_shading(s, "Shaded", "options-shaded")
         scale = float(st["scale"])
         w, h = (int(v) for v in st["size"].split("x"))
-        check("a mode without options has no second row", st["options"] == "" and st["optionRects"] == "", st["options"])
+        check("Shaded offers Color and Edges in a second row", list(opt(st)) == ["Color", "Edges"] and opt(st)["Edges"] == "On" and len(rects(st)) == 2, st["options"])
         s.key("X")
         x1 = s.shot("section-under-toolbar")
         sx, sy, sw, sh = (float(v) for v in x1["sliderBox"].split(","))
@@ -687,18 +687,18 @@ def fraction_and_option_tests(exe, S, env, out):
         check("the Light button steps through four lights and comes back round", seen == ["Soft", "Left", "Right", "Top", "Soft"], " > ".join(seen))
 
         seen, edge, chips = [opt(st)["Backdrop"]], {}, {}
-        for i in range(4):
+        for i in range(3):
             press(s, spot(st, 101)); st = s.shot("studio-backdrop-%d" % (i + 1)); seen.append(opt(st)["Backdrop"])
             edge[seen[-1]] = Image.open(st["png"]).getpixel((w - 12, h // 2))
             chips[seen[-1]] = st["solidPills"] == "True"
-        fits = ["Dark"] if dark else ["White", "Plain"]             # the backdrops this theme's see-through buttons read well on
-        check("buttons get a solid chip on a backdrop that does not suit the theme", all(chips[n] == (n not in fits) for n in chips),
+        fits = "Dark" if dark else "White"                           # the backdrop this theme's see-through buttons read well on
+        check("buttons get a solid chip on a backdrop that does not suit the theme", all(chips[n] == (n != fits) for n in chips),
               ", ".join("%s %s" % (n, "chip" if chips[n] else "plain") for n in chips))
-        order = ["White", "Grey", "Dark", "Plain"]
+        order = ["White", "Grey", "Dark"]
         start = order.index(seen[0])
-        check("the Backdrop button steps through four backdrops", seen == [order[(start + i) % 4] for i in range(5)], " > ".join(seen))
+        check("the Backdrop button steps through three backdrops", seen == [order[(start + i) % 3] for i in range(4)], " > ".join(seen))
         lum = {n: sum(p[:3]) / 3 for n, p in edge.items()}
-        check("each backdrop looks the part", lum["Plain"] >= 250 and 200 <= lum["White"] < 250 and 80 <= lum["Grey"] <= 190 and lum["Dark"] <= 60,
+        check("each backdrop looks the part", 200 <= lum["White"] < 250 and 80 <= lum["Grey"] <= 190 and lum["Dark"] <= 60,
               ", ".join("%s %d" % (n, lum[n]) for n in order))
 
         seen, face = [opt(st)["Material"]], {}
@@ -732,7 +732,110 @@ def fraction_and_option_tests(exe, S, env, out):
         s.key("I"); s.key("T")
         s.shot("studio-other-theme")
         s.key("T")
+
+        # ── the other modes ──
+        def cycle(action, label, shot, n):
+            """Presses one option button n times; returns the names it showed and the state after each press."""
+            nonlocal st
+            names, states = [opt(st)[label]], {}
+            for i in range(n):
+                press(s, spot(st, action)); st = s.shot("%s-%d" % (shot, i + 1)); names.append(opt(st)[label])
+                states[names[-1]] = st
+            return names, states
+
+        def centre(state):
+            return Image.open(state["png"]).getpixel((w // 2, h // 2))[:3]
+
+        def differ(a, b):
+            """Whether two shots show the model differently (the toolbar, toast and read-outs are left out)."""
+            return ImageChops.difference(Image.open(a["png"]).crop(lower), Image.open(b["png"]).crop(lower)).getbbox() is not None
+
+        def ring(names, order):
+            return names == [order[(order.index(names[0]) + i) % len(order)] for i in range(len(order) + 1)]
+
+        st = to_shading(s, "Shaded", "solid-shaded")
+        names, states = cycle(100, "Color", "solid-color", 5)
+        check("the Color button steps through the colors, as C does", len(set(names[:5])) == 5 and names[5] == names[0]
+              and all(states[n]["material"] == n for n in states), " > ".join(names))
+        press(s, spot(st, 101)); st = s.shot("solid-edges-off")
+        check("Edges off turns Shaded into Smooth", st["shading"] == "Smooth" and opt(st)["Edges"] == "Off" and st["edges"] == "False", "%s, %s" % (st["shading"], st["options"]))
+        press(s, spot(st, 101)); st = s.shot("solid-edges-on")
+        check("and Edges on turns it back", st["shading"] == "Shaded" and opt(st)["Edges"] == "On", "%s, %s" % (st["shading"], st["options"]))
+
+        st = to_shading(s, "Metal", "metal")
+        check("Metal shows finish, surface, backdrop and shadow", st["options"] == "Finish:Aluminum;Surface:Satin;Backdrop:%s;Shadow:On" % ("Dark" if dark else "White"), st["options"])
+        names, states = cycle(100, "Finish", "metal-finish", 5)
+        px = {n: centre(states[n]) for n in states}
+        check("the Finish button steps through five metals", names == ["Aluminum", "Steel", "Brass", "Copper", "Black", "Aluminum"], " > ".join(names))
+        check("brass and copper are warm, steel is darker than aluminum, black darkest", px["Brass"][0] > px["Brass"][2] + 40 and px["Copper"][0] > px["Copper"][2] + 40
+              and sum(px["Black"]) < sum(px["Steel"]) < sum(px["Aluminum"]), ", ".join("%s %s" % (n, px[n]) for n in px))
+        names, states = cycle(101, "Surface", "metal-surface", 3)
+        check("the Surface button steps through polished, satin and matte", ring(names, ["Polished", "Satin", "Matte"]) and names[0] == "Satin", " > ".join(names))
+        check("each surface looks different", differ(states["Polished"], states["Satin"]) and differ(states["Satin"], states["Matte"]) and differ(states["Polished"], states["Matte"]))
+        names, states = cycle(102, "Backdrop", "metal-backdrop", 3)
+        check("Metal has the same three backdrops", ring(names, ["White", "Grey", "Dark"]), " > ".join(names))
+        on = st
+        press(s, spot(st, 103)); st = s.shot("metal-shadow-off")
+        check("Metal's shadow can be switched off", opt(st)["Shadow"] == "Off" and differ(on, st))
+        press(s, spot(st, 103)); st = s.shot("metal-shadow-on")
+
+        st = to_shading(s, "Lines", "lines")
+        check("Lines shows hidden lines, weight and paper", st["options"] == "Hidden lines:Off;Weight:Fine;Paper:%s" % ("Dark" if dark else "White"), st["options"])
+        plain = st
+        press(s, spot(st, 100)); st = s.shot("lines-hidden-faint")
+        check("Hidden lines: Faint draws the edges behind the part", opt(st)["Hidden lines"] == "Faint" and differ(plain, st))
+        faint = st
+        press(s, spot(st, 100)); st = s.shot("lines-hidden-off")
+        check("and Off takes them away again", opt(st)["Hidden lines"] == "Off" and not differ(plain, st) and differ(faint, st))
+        press(s, spot(st, 101)); st = s.shot("lines-bold")
+        check("Weight: Bold draws heavier lines", opt(st)["Weight"] == "Bold" and differ(plain, st))
+        press(s, spot(st, 101)); st = s.shot("lines-fine")
+        names, states = cycle(102, "Paper", "lines-paper", 3)
+        blue = Image.open(states["Blueprint"]["png"]).getpixel((w - 12, h // 2))
+        check("the Paper button steps through white, blueprint and dark", ring(names, ["White", "Blueprint", "Dark"]), " > ".join(names))
+        check("blueprint paper is blue, with solid buttons in the light theme only", blue[2] > blue[0] + 60 and (states["Blueprint"]["solidPills"] == "True") == (not dark)
+              and (states["White"]["solidPills"] == "True") == dark, "%s, chips %s" % (blue, states["Blueprint"]["solidPills"]))
+
+        st = to_shading(s, "X-ray", "xray")
+        check("X-ray shows opacity and edges", st["options"] == "Opacity:Medium;Edges:On", st["options"])
+        names, states = cycle(100, "Opacity", "xray-opacity", 3)
+        check("the Opacity button steps through light, medium and heavy", ring(names, ["Light", "Medium", "Heavy"]) and names[0] == "Medium", " > ".join(names))
+        check("each opacity looks different", differ(states["Light"], states["Medium"]) and differ(states["Medium"], states["Heavy"]))
+        press(s, spot(st, 101)); st = s.shot("xray-edges-off")
+        check("X-ray's edges can be switched off without leaving X-ray", st["shading"] == "X-ray" and opt(st)["Edges"] == "Off" and st["edges"] == "False", "%s, %s" % (st["shading"], st["options"]))
+        st = to_shading(s, "Shaded", "xray-left")
+        st = to_shading(s, "X-ray", "xray-again")
+        check("and X-ray remembers that", opt(st)["Edges"] == "Off", st["options"])
+        press(s, spot(st, 101)); st = s.shot("xray-edges-on")
+
+        st = to_shading(s, "Wire", "wire")
+        check("Wire shows which lines it draws", st["options"] == "Lines:All triangles", st["options"])
+        solid_px = centre(st)
+        press(s, spot(st, 100)); st = s.shot("wire-feature-edges")
+        open_px = centre(st)
+        check("Feature edges only leaves the part see-through", st["shading"] == "Wire" and opt(st)["Lines"] == "Feature edges only"
+              and sum(abs(a_ - b_) for a_, b_ in zip(solid_px, open_px)) > 40, "centre %s -> %s" % (solid_px, open_px))
+        press(s, spot(st, 100)); st = s.shot("wire-all-triangles")
+
+        st = to_shading(s, "Overhangs", "overhangs")
+        names, states = cycle(100, "Angle", "overhangs-angle", 3)
+        check("the Angle button steps through 30, 45 and 60 degrees", ring(names, ["30°", "45°", "60°"]) and names[0] == "45°", " > ".join(names))
         to_shading(s, "Shaded", "options-leave")
+    finally:
+        s.close()
+
+    s = Session(exe, S("knot.stl"), env, out)
+    try:
+        st = to_shading(s, "Overhangs", "overhangs-knot")
+        w, h = (int(v) for v in st["size"].split("x"))
+        marked = {}
+        for i in range(3):
+            im = Image.open(st["png"]).convert("RGB").crop((0, int(h * 0.2), w, int(h * 0.9)))
+            marked[opt(st)["Angle"]] = sum(1 for r, g, b in im.getdata() if r > 120 and r - b > 90)
+            press(s, spot(st, 100)); st = s.shot("overhangs-knot-%d" % (i + 1))
+        check("a smaller angle marks more of the part, a larger one less", marked.get("30°", 0) > marked.get("45°", 0) > marked.get("60°", 0) > 0,
+              ", ".join("%s %d px" % (n, marked[n]) for n in marked))
+        to_shading(s, "Shaded", "overhangs-done")
     finally:
         s.close()
 

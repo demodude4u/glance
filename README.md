@@ -78,13 +78,22 @@ transparency, so a copied picture always has a background.
 
 ### Mode options
 
-Some shading modes have options of their own. While such a mode is on, they appear as a second row of smaller
-buttons under the toolbar; each button shows its current choice and steps to the next one when clicked. The
-choices are remembered for that mode.
+Each shading mode has options of its own. While a mode is on, they appear as a second row of smaller buttons
+under the toolbar; each button shows its current choice and steps to the next one when clicked. The choices are
+remembered for that mode.
 
 | Mode | Options |
 |---|---|
-| Studio | **Light**: Soft, Left, Right, Top. **Backdrop**: White, Grey, Dark, Plain (flat white, easy to cut out). **Material**: Clay, White, Charcoal, Part color (the file's colors, or the color chosen with C). **Shadow**: the shadow on the ground, on or off |
+| Shaded, Smooth | **Color**: the same colors as C. **Edges**: on or off, the same as E (edges are what tell Shaded from Smooth) |
+| Studio | **Light**: Soft, Left, Right, Top. **Backdrop**: White, Grey, Dark. **Material**: Clay, White, Charcoal, Part color (the file's colors, or the color chosen with C). **Shadow**: the shadow on the ground, on or off |
+| Metal | **Finish**: Aluminum, Steel, Brass, Copper, Black. **Surface**: Polished, Satin, Matte. **Backdrop**: White, Grey, Dark. **Shadow**: on or off |
+| Lines | **Hidden lines**: Off, or Faint to show the edges behind the part. **Weight**: Fine, Bold. **Paper**: White, Blueprint, Dark |
+| X-ray | **Opacity**: Light, Medium, Heavy. **Edges**: on or off |
+| Wire | **Lines**: All triangles on the solid, or Feature edges only with nothing filled in |
+| Overhangs | **Angle**: 30°, 45° or 60° past vertical before a face is marked |
+
+Until a backdrop or paper is chosen it follows the light / dark theme, as before. On one that does not suit the
+theme (a dark backdrop in the light theme, say) the buttons turn solid so they stay readable.
 
 ### Units
 

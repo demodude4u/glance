@@ -14,10 +14,19 @@ The version number lives in `src\Directory.Build.props`. Each release is tagged 
   on, a length that is within 0.0005 in of a 64th is written as a reduced fraction (1 3/8", 5/16", 2"); anything
   else stays decimal, so a fraction on screen means the part is that size. It applies to the size read-out,
   bounding-box dimensions, measurements and the details card.
-- **Mode options.** A shading mode can have options of its own, shown as a second row of smaller buttons under
-  the toolbar while that mode is on and remembered per mode. Studio is the first: Light (Soft, Left, Right, Top),
-  Backdrop (White, Grey, Dark, Plain), Material (Clay, White, Charcoal, Part color) and Shadow (on, off). On a
-  backdrop that does not suit the theme (Dark in the light theme, say) the buttons turn solid so they stay readable.
+- **Mode options.** Each shading mode has options of its own, shown as a second row of smaller buttons under the
+  toolbar while that mode is on and remembered per mode:
+  - Shaded and Smooth: Color, Edges (the same as **C** and **E**).
+  - Studio: Light (Soft, Left, Right, Top), Backdrop (White, Grey, Dark), Material (Clay, White, Charcoal,
+    Part color), Shadow (on, off).
+  - Metal: Finish (Aluminum, Steel, Brass, Copper, Black), Surface (Polished, Satin, Matte), Backdrop, Shadow.
+  - Lines: Hidden lines (Off, Faint), Weight (Fine, Bold), Paper (White, Blueprint, Dark).
+  - X-ray: Opacity (Light, Medium, Heavy), Edges (on, off).
+  - Wire: Lines (All triangles, Feature edges only).
+  - Overhangs: Angle (30°, 45°, 60°).
+
+  Nothing changes until a choice is made: every mode starts out looking as it did. On a backdrop or paper that
+  does not suit the theme (Dark in the light theme, say) the buttons turn solid so they stay readable.
 - The section slider now sits under the toolbar instead of over its right-hand buttons, and a long message at
   the top is shortened to fit a narrow window.
 
