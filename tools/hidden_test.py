@@ -868,6 +868,30 @@ def fraction_and_option_tests(exe, S, env, out):
         w, h = (int(v) for v in a["size"].split("x"))
         scale = float(a["scale"])
         check("the window is as narrow as Glance allows", w <= 420 * scale, a["size"])
+
+        def boxes(state):
+            return {b.split(":")[0]: tuple(float(v) for v in b.split(":")[1].split(",")) for b in state["buttonRects"].split(";") if b}
+
+        def tidy(state):
+            """Every button (toolbar, Picture, options) is wholly inside the window and no two overlap."""
+            bb = list(boxes(state).values())
+            inside = all(b[0] >= 0 and b[1] >= 0 and b[0] + b[2] <= w and b[1] + b[3] <= h for b in bb)
+            clash = any(p[0] < q[0] + q[2] and q[0] < p[0] + p[2] and p[1] < q[1] + q[3] and q[1] < p[1] + p[3] for i, p in enumerate(bb) for q in bb[i + 1:])
+            return inside and not clash
+
+        need = ["0", "1", "2", "6", "7", "8", "3", "5", "9"]         # Measure ... units, Fix units, Picture
+        check("in a narrow window the toolbar wraps and every button is still there", int(a["toolbarLines"]) >= 2 and all(n in boxes(a) for n in need) and tidy(a),
+              "%s lines: %s" % (a["toolbarLines"], a["buttonRects"]))
+        press(s, spot(a, 8))
+        nb = s.shot("narrow-shading-button")
+        check("the Shading button on a wrapped line still works", nb["shading"] == "Smooth" and tidy(nb), nb["shading"])
+        press(s, spot(nb, 9))
+        pc = s.shot("narrow-picture-card")
+        cx, cy, cw, ch = (float(v) for v in pc["pictureCard"].split(","))
+        pb = boxes(pc)["9"]
+        check("the whole Picture card fits in the window, under the Picture button", pc["picture"] == "True" and cx >= 0 and cx + cw <= w
+              and cy >= pb[1] + pb[3] and cy + ch <= h, "card %s in %s" % (pc["pictureCard"], pc["size"]))
+        s.key(0x1B)
         check("inch=1 from an older version still means inches", a["units"] == "in", a["units"])
         check("4x pictures from an older version become 4K", a["pictureChoice"] == "4k", a["pictureChoice"])
         st = to_shading(s, "Studio", "narrow-studio")
@@ -875,7 +899,7 @@ def fraction_and_option_tests(exe, S, env, out):
         overlap = any(a_[0] < b_[0] + b_[2] and b_[0] < a_[0] + a_[2] and a_[1] < b_[1] + b_[3] and b_[1] < a_[1] + a_[3]
                       for i, a_ in enumerate(rr) for b_ in rr[i + 1:])
         check("in a narrow window the options wrap onto more lines", int(st["optionLines"]) >= 2 and len(rr) == 4, "%s lines" % st["optionLines"])
-        check("every option stays inside the window and none overlap", not overlap and all(r[0] >= 0 and r[0] + r[2] <= w for r in rr), st["optionRects"])
+        check("every option stays inside the window and none overlap", not overlap and all(r[0] >= 0 and r[0] + r[2] <= w for r in rr) and tidy(st), st["optionRects"])
         check("the toast sits under the wrapped rows", st["toast"] != "" and float(st["toastY"]) >= max(r[1] + r[3] for r in rr), st["toastY"])
         s.key("X")
         x3 = s.shot("narrow-section")

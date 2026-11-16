@@ -27,8 +27,9 @@ The version number lives in `src\Directory.Build.props`. Each release is tagged 
 
   Nothing changes until a choice is made: every mode starts out looking as it did. On a backdrop or paper that
   does not suit the theme (Dark in the light theme, say) the buttons turn solid so they stay readable.
-- The section slider now sits under the toolbar instead of over its right-hand buttons, and a long message at
-  the top is shortened to fit a narrow window.
+- **Narrow windows.** The toolbar wraps onto more lines instead of running off the right edge, so every button
+  (and the Picture button) stays in reach down to the smallest window. The section slider now sits under the
+  toolbar instead of over its right-hand buttons, and a long message at the top is shortened to fit.
 
 ## 1.4.0 (2026-11-16)
 

@@ -256,7 +256,7 @@ internal static unsafe partial class App
     {
         var options = ModeOptions();
         if (options == null) return;
-        float h = 26 * s, pad = 11 * s, gap = 6 * s, between = 6 * s, x = m, y = m + 32 * s + 8 * s, right = _w - m;
+        float h = 26 * s, pad = 11 * s, gap = 6 * s, between = 6 * s, x = m, y = _optBottom + 8 * s, right = _w - m;      // under the toolbar, however many lines it took
         _optLines = 1;
         for (int i = 0; i < options.Length; i++)
         {

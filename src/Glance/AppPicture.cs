@@ -258,8 +258,12 @@ internal static unsafe partial class App
         float h = pad + U.Medium.Height + 14 * s + rowH + 18 * s + U.Body.Height + 6 * s + sizeH * 2 + gap + (limited ? U.Body.Height + 8 * s : 0) + 16 * s
             + U.Body.Height + 6 * s + rowH + 16 * s + U.Body.Height * 2 + 4 * s + pad * 0.8f;
         float x = MathF.Max(8 * s, _w - m - w), y = m + 32 * s + 10 * s;
-        if (_optRight > x - 12 * s) y = MathF.Max(y, _optBottom + 10 * s);              // below the mode's options when they reach this far
+        if (_toolbarWrapRight > x - 12 * s) y = MathF.Max(y, _toolbarBottom + 10 * s);  // below a wrapped toolbar that reaches this far
+        if (_optRight > x - 12 * s) y = MathF.Max(y, _optBottom + 10 * s);              // and below the mode's options when they do
         if (_sliderBox.W > 0 && _sliderBox.X + _sliderBox.W > x - 12 * s) y = MathF.Max(y, _sliderBox.Y + _sliderBox.H + 10 * s);
+        // In a short window, showing the whole card matters more than keeping clear of the rows above it
+        // (they do nothing while the card is open); it still stays under the Picture button.
+        y = MathF.Max(MathF.Min(y, _h - h - 8 * s), m + 32 * s + 10 * s);
         Card(x, y, w, h, s);
         _picCard = (x, y, w, h);
         float ty = y + pad, inner = w - pad * 2;

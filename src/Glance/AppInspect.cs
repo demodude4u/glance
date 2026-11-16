@@ -98,7 +98,8 @@ internal static unsafe partial class App
     // ───────────────────────── Shading ─────────────────────────
 
     static int _style;      // how faces are filled: 0 shaded, 1 lines (flat paper), 2 x-ray, 3 overhangs, 4 studio clay, 5 metal
-    static float _toolbarRight;
+    static float _toolbarRight, _toolbarWrapRight, _toolbarBottom;      // right edge of the toolbar's first line and of the lines under it; its bottom
+    static int _toolbarLines = 1;
 
     /// The looks the Shading button steps through. E and W still switch edges and wireframe on their own.
     static readonly (string Name, string Note, int Style, bool Edges, bool Wire)[] Shadings =
@@ -373,35 +374,51 @@ internal static unsafe partial class App
         bool[] on = [_measure, _section != 0, _box, _layFlat, _ortho, false, false];
         int[] actions = [0, 1, 2, 6, 7, 8, 3];
         float x = m, y = m, h = 32 * s, pad = 14 * s, gap = 6 * s;
+        // In a narrow window the buttons wrap onto more lines. The first line stops short of the Picture button
+        // (top right); the lines under it can use the whole width.
+        float limit = _w - m - (U.Measure(U.Medium, "Picture") + pad * 2) - 12 * s;
+        _toolbarLines = 1; _toolbarRight = 0; _toolbarWrapRight = 0;
+        void Wrap(float w, float lead = 0)
+        {
+            if (x > m && x + lead + w > limit) { x = m; y += h + gap; limit = _w - m; _toolbarLines++; }
+            else if (x > m) x += lead;
+        }
+        void Placed(float w)
+        {
+            if (_toolbarLines == 1) _toolbarRight = x + w; else _toolbarWrapRight = MathF.Max(_toolbarWrapRight, x + w);
+        }
         _hotButton = -1;
         for (int i = 0; i < labels.Length; i++)
         {
             float w = U.Measure(U.Medium, labels[i]) + pad * 2;
+            Wrap(w);
             bool hot = _drag == 0 && _mouseX >= x && _mouseX <= x + w && _mouseY >= y && _mouseY <= y + h;
             if (hot) _hotButton = i;
             if (on[i]) U.Rect(x, y, w, h, h / 2, _theme.Accent);
             else Pill(x, y, w, h, hot);
             U.Text(U.Medium, labels[i], x + pad, y + (h - U.Medium.Height) / 2, on[i] ? AccentInk : _theme.Text);
             _buttons.Add((x, y, w, h, actions[i]));
+            Placed(w);
             x += w + gap;
         }
 
-        _toolbarRight = x - gap;
         // Files without trustworthy units get one more button: what the file's numbers are being read as.
         if (_mesh!.UnitChoice)
         {
             bool guess = _mesh.UnitSource == 1 && _mesh.FileUnit != "mm";      // only flag a guess that changed the size
             string label = "Fix units";
             float w = U.Measure(U.Medium, label) + pad * 2;
-            x += gap * 2;
+            Wrap(w, gap * 2);                                                    // set a little apart from the rest
             bool hot = _drag == 0 && _mouseX >= x && _mouseX <= x + w && _mouseY >= y && _mouseY <= y + h;
             if (hot) _hotButton = 5;
             Pill(x, y, w, h, hot);
             if (guess) U.Rect(x, y, w, h, h / 2, _theme.Accent, 1.5f * s);
             U.Text(U.Medium, label, x + pad, y + (h - U.Medium.Height) / 2, _theme.Text);
             _buttons.Add((x, y, w, h, 5));
-            _toolbarRight = x + w;
+            Placed(w);
         }
+        _toolbarBottom = y + h;
+        _optBottom = _toolbarBottom;
     }
 
     static void SectionSlider(float s, float m)
@@ -413,7 +430,7 @@ internal static unsafe partial class App
         float w = pad + lw + track + pad + flipW + 6 * s;
         float x = (_w - w) / 2, y = m;
         // Beside the toolbar when there is room for it there; otherwise under the toolbar and the mode's options.
-        bool beside = x >= _toolbarRight + 12 * s && (_picButton.W <= 0 || x + w <= _picButton.X - 12 * s);
+        bool beside = _toolbarLines == 1 && x >= _toolbarRight + 12 * s && (_picButton.W <= 0 || x + w <= _picButton.X - 12 * s);
         if (!beside) y = _optBottom + 8 * s;
         _sliderBox = (x, y, w, h);
         U.Rect(x, y + 2 * s, w, h, h / 2, new Vector4(0, 0, 0, _theme.Dark ? 0.22f : 0.08f));
