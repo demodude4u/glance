@@ -81,6 +81,9 @@ internal static unsafe partial class App
     static double Seconds(long from) => (Stopwatch.GetTimestamp() - from) / (double)Stopwatch.Frequency;
     static void Invalidate() => _dirty = true;
 
+    /// <summary>A longer-lived toast for news that did not come from something the person just did.</summary>
+    public static void Notify(string text) => Toast(text, 6f);
+
     public static void Post(Action a)
     {
         _posted.Enqueue(a);
@@ -134,7 +137,7 @@ internal static unsafe partial class App
             if (!_quit && (_dirty || _animating)) Frame();
         }
         Settings.Edges = _edges; Settings.Grid = _grid; Settings.Ortho = _ortho;
-        if (_snapshot == null) Settings.Save();
+        if (_snapshot == null) { Settings.Save(); Updater.ApplyOnExit(); }
         return Environment.ExitCode;
     }
 
@@ -560,6 +563,7 @@ internal static unsafe partial class App
         if (_tFirst == 0)
         {
             _tFirst = Seconds(T0) * 1000;
+            if (_snapshot == null) Updater.Start();        // only after the first picture is on screen
             if (GL.SwapInterval != null) GL.SwapInterval(1);
         }
         if (_pendingShot >= 0) TestShot();

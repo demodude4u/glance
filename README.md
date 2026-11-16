@@ -82,7 +82,7 @@ remembered for that file.
 
 ## Install
 
-Give people one file: `dist\Glance Setup.exe` (about 20 MB). Running it shows two boxes, both ticked:
+Give people one file, `Glance.Setup.exe` from the [latest release](https://github.com/demodude4u/glance/releases/latest) (about 21 MB; built here as `dist\Glance Setup.exe`). Running it shows two boxes, both ticked:
 
 - **Open model files with Glance**: double-clicking an STL, OBJ, STEP or IGES file opens it in Glance.
 - **Add "Open in Glance" to the right-click menu**: works whichever app is set to open the file. On Windows 11
@@ -98,16 +98,40 @@ appears for a type, choose Glance there once and click **Always**.
 Unattended: `"Glance Setup.exe" --quiet [--no-associate] [--no-menu]`, and `Glance.exe --uninstall --quiet`.
 From this folder, `.\build.ps1` builds everything and `.\install.ps1` / `.\uninstall.ps1` run those two commands.
 
+## Updates
+
+An installed Glance keeps itself up to date from <https://github.com/demodude4u/glance/releases>:
+
+1. A few seconds after it opens, and at most once a day, it reads `version.txt` from the latest release.
+   Nothing else is sent: it is a plain download from GitHub, with no account, identifier or usage data.
+2. If that version is newer, it downloads `Glance.Setup.exe` in the background and checks its SHA-256 against the
+   one in `version.txt`. A file that does not match is thrown away.
+3. When the last Glance window is closed, the installer runs silently, keeps the choices made at install time, and
+   the next start shows "Glance was updated to version X".
+
+It never runs before the first picture is on screen, never closes a window, and only applies to a copy put there by
+the installer (a build run from a folder leaves itself alone). To switch it off, add `autoUpdate=0` to
+`%LOCALAPPDATA%\Glance\settings.ini`. What happened is logged in `%LOCALAPPDATA%\Glance\update\update.log`.
+
+The SHA-256 check guards against a damaged or partial download. It does not replace code signing: anyone who can
+publish a release in the repository can publish an update.
+
 ## Releasing
 
 1. Set the new number in `src\Directory.Build.props` (the only place it lives) and add a section to `CHANGELOG.md`.
-2. Commit, then run `.\build.ps1` so the build carries that commit's id, and run both test suites
-   (`tools\hidden_test.py`, `tools\hidden_setup.py`).
-3. Tag the commit `vX.Y.Z`. Hand out `dist\Glance Setup.exe`; running it over an older Glance replaces it.
+2. Commit, then run `.\build.ps1` so the build carries that commit's id, and run the three test suites
+   (`tools\hidden_test.py`, `tools\hidden_setup.py`, `tools\hidden_update.py`).
+3. Tag the commit `vX.Y.Z` and push the branch and the tag.
+4. Create a GitHub release for that tag and attach the two files in `dist\release`: `Glance.Setup.exe` and
+   `version.txt`. Both names matter: installed copies fetch exactly those from the latest release, so an update
+   goes out to everyone the moment the release is published. Mark a release as a pre-release to hold it back.
 
-The version shows in the help card (F1) as "Version 1.1.0 (commit)", in the installer's title bar, in the file
+The version shows in the help card (F1) as "Version 1.3.0 (commit)", in the installer's title bar, in the file
 properties of both programs and under Settings > Apps > Installed apps. Use the third number for fixes, the second
 for new features.
+
+The tests drive the real programs on a hidden desktop through a small helper package, `ctcore`, which is not part of
+this repository; set `CTCORE_PATH` to its folder if it is not installed.
 
 ## Building
 

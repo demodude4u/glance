@@ -11,6 +11,7 @@ internal static class Settings
     public static string Theme = "auto";     // auto | dark | light
     public static int Material = -1;         // -1 = pick for the theme
     public static int PictureScale = 2;      // pictures are this many times the window's size (1, 2 or 4)
+    public static bool AutoUpdate = true;    // "autoUpdate=0" stops Glance fetching new versions
     public static bool PictureAlpha;         // saved pictures have a transparent background
 
     static string File => Path.Combine(Loaders.DataDir, "settings.ini");
@@ -37,6 +38,7 @@ internal static class Settings
                     case "inch": Inch = v == "1"; break;
                     case "theme": if (v is "auto" or "dark" or "light") Theme = v; break;
                     case "pictureScale": if (int.TryParse(v, out int ps) && ps is 1 or 2 or 4) PictureScale = ps; break;
+                    case "autoUpdate": AutoUpdate = v != "0"; break;
                     case "pictureAlpha": PictureAlpha = v == "1"; break;
                     case "material": int.TryParse(v, NumberStyles.Integer, null, out Material); break;
                 }
@@ -55,7 +57,7 @@ internal static class Settings
                 $"width={Width}", $"height={Height}", $"maximized={(Maximized ? 1 : 0)}",
                 $"edges={(Edges ? 1 : 0)}", $"grid={(Grid ? 1 : 0)}", $"ortho={(Ortho ? 1 : 0)}",
                 $"seenHint={(SeenHint ? 1 : 0)}", $"inch={(Inch ? 1 : 0)}", $"theme={Theme}", $"material={Material}",
-                $"pictureScale={PictureScale}", $"pictureAlpha={(PictureAlpha ? 1 : 0)}",
+                $"autoUpdate={(AutoUpdate ? 1 : 0)}", $"pictureScale={PictureScale}", $"pictureAlpha={(PictureAlpha ? 1 : 0)}",
             ]);
         }
         catch { }

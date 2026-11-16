@@ -1,7 +1,7 @@
-<Project>
+﻿<Project>
   <!-- The one place Glance's version number lives. Glance.exe, Glance Setup.exe, the Installed apps entry
        and the in-app help all read it from here. See README, Releasing. -->
   <PropertyGroup>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
   </PropertyGroup>
 </Project>

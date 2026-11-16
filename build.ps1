@@ -34,4 +34,13 @@ dotnet publish "$root\src\Setup\Setup.csproj" -c Release -o "$root\build\setup" 
 if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
 Copy-Item "$root\build\setup\Glance Setup.exe" "$root\dist\Glance Setup.exe" -Force
 $version = ([xml](Get-Content "$root\src\Directory.Build.props")).Project.PropertyGroup.Version
+
+# What a GitHub release must carry for installed copies to update themselves (see README, Releasing):
+# the installer under a name without spaces, and version.txt = the version and the installer's SHA-256.
+$release = "$root\dist\release"
+if (Test-Path $release) { Remove-Item $release -Recurse -Force }
+New-Item -ItemType Directory -Force $release | Out-Null
+Copy-Item "$root\dist\Glance Setup.exe" "$release\Glance.Setup.exe"
+$hash = (Get-FileHash "$release\Glance.Setup.exe" -Algorithm SHA256).Hash
+[IO.File]::WriteAllText("$release\version.txt", "$version`n$hash`n")
 "Built $root\dist\Glance Setup.exe  version $version  ({0:N1} MB)" -f ((Get-Item "$root\dist\Glance Setup.exe").Length / 1MB)

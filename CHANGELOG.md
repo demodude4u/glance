@@ -2,6 +2,14 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
+## 1.3.0 (2026-11-16)
+
+- **Automatic updates.** An installed Glance looks for a newer release on GitHub a few seconds after it opens
+  (at most once a day), downloads it in the background, checks it against the published SHA-256, and installs it
+  when the last Glance window is closed. It never interrupts work, never delays start-up, and keeps the choices
+  made at install. The next start says "Glance was updated to version X". `autoUpdate=0` in settings.ini turns it off.
+- The installer says that Glance keeps itself up to date.
+
 ## 1.2.0 (2026-11-13)
 
 - **Studio and Metal looks.** Two more stops on the Shading button, made for pictures: Studio is matte clay with soft

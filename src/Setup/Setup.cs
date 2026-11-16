@@ -92,6 +92,7 @@ internal static unsafe class Setup
     {
         try
         {
+            if (args.Contains("--update")) return Update(args);
             if (args.Contains("--quiet"))        // unattended: no window, both options unless switched off
             {
                 Install(!args.Contains("--no-associate"), !args.Contains("--no-menu"));
@@ -101,6 +102,7 @@ internal static unsafe class Setup
         }
         catch (Exception ex)
         {
+            if (args.Contains("--update")) return 1;                 // a failed self-update stays silent; Glance tries again later
             if (args.Contains("--quiet")) { Console.Error.WriteLine(ex.Message); return 1; }
             fixed (char* t = "Glance could not be installed.\n\n" + ex.Message) fixed (char* c = "Glance Setup") MessageBoxW(0, t, c, 0x10);
             return 1;
@@ -228,7 +230,7 @@ internal static unsafe class Setup
             1 => ("Installing…", Slate),
             2 => ("Glance is installed. Double-click a model to open it.", Charcoal),
             3 => ("Glance could not be installed. " + _error, Charcoal),
-            _ => ("Installs for you only. No administrator rights needed.", Slate),
+            _ => ("Installs for you only, no administrator rights needed. Keeps itself up to date from GitHub.", Slate),
         };
         if (_state == 2 || _state == 3)
         {
@@ -290,11 +292,50 @@ internal static unsafe class Setup
 
     // ------------------------------------------------------------------ the actual work
 
-    static void Install(bool associate, bool menu)
+    static bool Running(string dir, string name)
+    {
+        foreach (var p in Process.GetProcessesByName(name))
+            try { if (!p.HasExited && p.MainModule!.FileName.StartsWith(dir + "\\", StringComparison.OrdinalIgnoreCase)) return true; } catch { }
+        return false;       // a process that has exited can linger in the list while something still holds its handle
+    }
+
+    /// <summary>
+    /// Glance started us as it closed, to replace itself with this newer version. Nobody is watching, so: no window,
+    /// never close a Glance that is still open (try again next time instead), and keep the choices made at install.
+    /// </summary>
+    static int Update(string[] args)
+    {
+        int at = Array.IndexOf(args, "--wait-pid");
+        if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out int pid))
+            try { using var parent = Process.GetProcessById(pid); parent.WaitForExit(15000); } catch { }      // already gone
+        for (int i = 0; i < 20 && Running(Target, "glance-step"); i++) Thread.Sleep(250);
+        if (Running(Target, "Glance") || Running(Target, "glance-step"))
+        {
+            string who = "";
+            foreach (string name in (string[])["Glance", "glance-step"])
+                foreach (var p in Process.GetProcessesByName(name))
+                    try { who += $" {name}:{p.Id}:{(p.HasExited ? "exited" : "alive")}:{p.MainModule!.FileName}"; } catch (Exception ex) { who += $" {name}:{p.Id}:?{ex.GetType().Name}"; }
+            Log("Glance is still open; will try again next time (waited for " + string.Join(" ", args) + "; saw" + who + ")");
+            return 2;
+        }
+        try { Install(true, true, keep: true); }
+        catch (Exception ex) { Log("update failed: " + ex.Message); throw; }
+        Log("updated to " + Glance.AppVersion.Number);
+        return 0;
+    }
+
+    /// <summary>One line per attempt, next to the downloaded installer (Glance's update folder).</summary>
+    static void Log(string what)
+    {
+        try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "update.log"), $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  Setup {Glance.AppVersion.Number}: {what}\r\n"); } catch { }
+    }
+
+    static void Install(bool associate, bool menu, bool keep = false)
     {
         string dir = Target;
 
         // Glance may be open, or still reading ahead in the background; it has to let go of its files.
+        if (!keep)
         foreach (string name in (string[])["Glance", "glance-step"])
             foreach (var p in Process.GetProcessesByName(name))
                 try { if (p.MainModule!.FileName.StartsWith(dir + "\\", StringComparison.OrdinalIgnoreCase)) { p.Kill(); p.WaitForExit(3000); } } catch { }
@@ -311,8 +352,12 @@ internal static unsafe class Setup
         string exe = Path.Combine(dir, "Glance.exe");
         var reg = new ProcessStartInfo(exe) { UseShellExecute = false, CreateNoWindow = true };
         reg.ArgumentList.Add("--register");
-        if (!associate) reg.ArgumentList.Add("--no-associate");
-        if (!menu) reg.ArgumentList.Add("--no-menu");
+        if (keep) reg.ArgumentList.Add("--keep");
+        else
+        {
+            if (!associate) reg.ArgumentList.Add("--no-associate");
+            if (!menu) reg.ArgumentList.Add("--no-menu");
+        }
         using (var p = Process.Start(reg)!)
         {
             if (!p.WaitForExit(30000)) { try { p.Kill(); } catch { } throw new InvalidOperationException("Registering the file types did not finish."); }

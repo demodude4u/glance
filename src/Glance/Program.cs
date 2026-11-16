@@ -16,7 +16,9 @@ internal static unsafe class Program
                 switch (args[i])
                 {
                     case "--register":
-                        Registration.Register(!args.Contains("--no-associate"), !args.Contains("--no-menu")); return 0;
+                        if (args.Contains("--keep")) Registration.Reregister();          // an update: leave the person's choices as they are
+                        else Registration.Register(!args.Contains("--no-associate"), !args.Contains("--no-menu"));
+                        return 0;
                     case "--unregister": Registration.Unregister(); return 0;
                     case "--uninstall": Registration.Uninstall(args.Contains("--quiet")); return 0;
                     case "--snapshot" when i + 1 < args.Length: snapshot = args[++i]; break;   // test hook

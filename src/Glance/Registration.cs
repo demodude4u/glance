@@ -97,6 +97,20 @@ internal static class Registration
         Win32.SHChangeNotify(0x08000000, 0, 0, 0);
     }
 
+    /// <summary>Registers again with whatever was chosen at install time (used when Glance updates itself).</summary>
+    public static void Reregister()
+    {
+        bool associate = false, menu = false;
+        foreach (var (ext, _) in Types)
+        {
+            using (var k = Registry.CurrentUser.OpenSubKey(Classes + ext))
+                if (k?.GetValue("") is string cur && cur.StartsWith("Glance.", StringComparison.Ordinal)) associate = true;
+            using (var k = Registry.CurrentUser.OpenSubKey(MenuKey(ext)))
+                if (k != null) menu = true;
+        }
+        Register(associate, menu);
+    }
+
     /// A saved "open with" choice that points at an app which is no longer installed makes Explorer ignore the
     /// registration above. Remove only those dead pointers; a choice for an app that still exists is left alone.
     static void ClearDeadChoice(string ext)
