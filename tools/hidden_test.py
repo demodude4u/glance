@@ -364,6 +364,62 @@ def units_and_layflat_tests(exe, S, env, out):
     check("lay-flat session exits cleanly", code == 0)
 
 
+def update_indicator_tests(exe, S, env, out):
+    """The update indicator, bottom right, in each of its stages (GLANCE_UPDATE_FAKE: no network, no install)."""
+    import re
+    print("== Part 5: the update indicator ==")
+
+    def at(state):
+        return tuple(int(v) for v in state["updateAt"].split(","))
+
+    s = Session(exe, S("bracket-ascii.stl"), dict(env, GLANCE_UPDATE_FAKE="checking"), out)
+    try:
+        a = s.shot("update-checking")
+        check("the title bar carries the version", re.search(r" Glance \d+\.\d+\.\d+$", s.title_now() or "") is not None, s.title_now() or "")
+        w, h = (int(v) for v in a["size"].split("x"))
+        check("a busy bar shows while Glance looks for a newer version", a["update"] == "Checking" and a["updateAt"] != "", a["updateAt"])
+        x, y = at(a)
+        check("it sits in the bottom right corner", x > w * 0.6 and y > h * 0.8, "%d,%d in %dx%d" % (x, y, w, h))
+        s.post_many([(WM_LBUTTONDOWN, 1, s.xy(x, y)), (WM_LBUTTONUP, 0, s.xy(x, y))], gap=0.03)
+        check("the bar is not a button", s.shot("update-checking-click")["update"] == "Checking")
+        s.key("T")
+        s.shot("update-checking-light")
+    finally:
+        s.close()
+
+    s = Session(exe, S("bracket-ascii.stl"), dict(env, GLANCE_UPDATE_FAKE="downloading:0.42"), out)
+    try:
+        time.sleep(1.2)
+        b = s.shot("update-downloading")
+        check("the bar fills as the update is downloaded", b["update"] == "Downloading" and abs(float(b["updateFill"]) - 0.42) < 0.02, b["updateFill"])
+        check("it stays where the busy bar was", at(b) == (x, y), b["updateAt"])
+    finally:
+        s.close()
+
+    s = Session(exe, S("bracket-ascii.stl"), dict(env, GLANCE_UPDATE_FAKE="ready:9.9.9"), out)
+    try:
+        time.sleep(1.2)
+        c = s.shot("update-ready")
+        check("an Update button takes the bar's place when the update is ready", c["update"] == "Ready" and at(c) == (x, y), c["updateAt"])
+        s.key("T")
+        s.shot("update-ready-light")
+        s.key("M")
+        m = s.shot("update-ready-measure")
+        check("the measure card keeps working beside it", m["measure"] == "True" and m["update"] == "Ready")
+        s.post_many([(WM_LBUTTONDOWN, 1, s.xy(x, y)), (WM_LBUTTONUP, 0, s.xy(x, y))], gap=0.03)
+        check("pressing Update closes Glance so it can be replaced", HiddenDesktop.wait(s.hproc, 10) == 0)
+    finally:
+        s.desk.close()
+
+    s = Session(exe, S("bracket-ascii.stl"), env, out)
+    try:
+        time.sleep(1.0)
+        d = s.shot("update-none")
+        check("a copy that was not installed shows no indicator", d["update"] == "None" and d["updateAt"] == "", d["updateAt"])
+    finally:
+        s.close()
+
+
 def inspection_tests(exe, S, env, out):
     print("== Part 3: measuring and inspection ==")
     s = Session(exe, S("plate-holes.stl"), env, out)
@@ -567,6 +623,7 @@ def main():
 
     inspection_tests(exe, S, env, out)
     units_and_layflat_tests(exe, S, env, out)
+    update_indicator_tests(exe, S, env, out)
 
     failed = [r for r in results if not r[1]]
     print("\n%d checks, %d failed" % (len(results), len(failed)))

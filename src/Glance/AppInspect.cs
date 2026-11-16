@@ -274,6 +274,7 @@ internal static unsafe partial class App
 
     static bool HudClick(int mx, int my)
     {
+        if (UpdateClick(mx, my)) return true;
         if (_mesh == null) return false;
         if (_picture) return PictureClick(mx, my);
         if (_fixUnits)                      // the chooser is modal: a row picks, anywhere else closes
@@ -483,7 +484,7 @@ internal static unsafe partial class App
         w = MathF.Min(w, _w - 2 * m);
         float h = pad * 1.5f + U.Body.Height * 2 + big.Height + 8 * s;
         float x = (_w - w) / 2, y = _h - m - h;
-        if (x < _pillRight + 12 * s) y -= 44 * s;         // keep clear of the size read-out
+        if (x < _pillRight + 12 * s || x + w > _updLeft - 12 * s) y -= 44 * s;         // keep clear of the size read-out and the update indicator
         Card(x, y, w, h, s);
         float ty = y + pad * 0.75f;
         U.TextCentered(U.Body, Fit(U.Body, title, w - pad), x + w / 2, ty, _theme.Dim); ty += U.Body.Height + 3 * s;
@@ -531,7 +532,7 @@ internal static unsafe partial class App
         string main = "Click the face that should sit on the ground", note = "Esc to cancel  ·  Z puts the model back afterwards";
         float pad = 20 * s, w = MathF.Min(MathF.Max(U.Measure(U.Medium, main), U.Measure(U.Body, note)) + pad * 2, _w - 2 * m);
         float h = pad * 1.5f + U.Medium.Height + U.Body.Height + 6 * s, x = (_w - w) / 2, y = _h - m - h;
-        if (x < _pillRight + 12 * s) y -= 44 * s;
+        if (x < _pillRight + 12 * s || x + w > _updLeft - 12 * s) y -= 44 * s;
         Card(x, y, w, h, s);
         U.TextCentered(U.Medium, Fit(U.Medium, main, w - pad), x + w / 2, y + pad * 0.75f, _theme.Text);
         U.TextCentered(U.Body, Fit(U.Body, note, w - pad), x + w / 2, y + pad * 0.75f + U.Medium.Height + 4 * s, _theme.Dim);

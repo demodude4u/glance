@@ -31,6 +31,7 @@ internal static partial class App
         U.Begin(_w, _h);
 
         _buttons.Clear(); _slider = default;
+        UpdateLayout(s, m);
         if (_mesh != null)
         {
             if (_box) BoxDims(s);
@@ -49,6 +50,7 @@ internal static partial class App
         else if (_error != null) ErrorState(s);
         else if (!_loading) EmptyState(s);
 
+        UpdateIndicator(s);
         if (_loading && Seconds(_loadStart) > 0.18) LoadingCard(s);
         if (_toast.Length > 0) ToastPill(s, m);
         if (_help) HelpCard(s);
@@ -65,7 +67,7 @@ internal static partial class App
             ($"{mesh.TriCount:N0} triangles", _theme.Dim),
             (Time(_loadMs), _theme.Dim),
         };
-        float pad = 14 * s, gap = 22 * s, h = 32 * s, avail = _w - m * 2 - 96 * s;
+        float pad = 14 * s, gap = 22 * s, h = 32 * s, avail = MathF.Min(_w - m - 96 * s, _updLeft - 12 * s) - m;
         float width;
         while (true)
         {

@@ -2,6 +2,14 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
+## 1.4.0 (2026-11-16)
+
+- **Updates you can see.** Glance now looks for a newer version every time it opens (it was once a day). A slim
+  bar in the bottom right corner slides while it looks, fills while an update is downloaded, and becomes an
+  **Update** button when the update is ready. Pressing it installs the update and reopens Glance on the same file.
+  An update that is not pressed still goes in when the last Glance window is closed.
+- **Version in the title bar**, after the file name.
+
 ## 1.3.0 (2026-11-16)
 
 - **Automatic updates.** An installed Glance looks for a newer release on GitHub a few seconds after it opens

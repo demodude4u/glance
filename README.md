@@ -102,14 +102,17 @@ From this folder, `.\build.ps1` builds everything and `.\install.ps1` / `.\unins
 
 An installed Glance keeps itself up to date from <https://github.com/demodude4u/glance/releases>:
 
-1. A few seconds after it opens, and at most once a day, it reads `version.txt` from the latest release.
+1. Every time it opens, as soon as the model is on screen, it reads `version.txt` from the latest release. A slim
+   bar slides in the bottom right corner while it looks, and fades away if there is nothing new.
    Nothing else is sent: it is a plain download from GitHub, with no account, identifier or usage data.
 2. If that version is newer, it downloads `Glance.Setup.exe` in the background and checks its SHA-256 against the
-   one in `version.txt`. A file that does not match is thrown away.
-3. When the last Glance window is closed, the installer runs silently, keeps the choices made at install time, and
-   the next start shows "Glance was updated to version X".
+   one in `version.txt`; the bar fills as the download goes. A file that does not match is thrown away.
+3. When the update is ready the bar becomes an **Update** button. Pressing it closes Glance, installs the update
+   and opens Glance again on the same file. If it is not pressed, the update goes in silently when the last
+   Glance window is closed. Either way the choices made at install time are kept, and the next start shows
+   "Glance was updated to version X".
 
-It never runs before the first picture is on screen, never closes a window, and only applies to a copy put there by
+It never runs before the first picture is on screen, never closes a window on its own, and only applies to a copy put there by
 the installer (a build run from a folder leaves itself alone). To switch it off, add `autoUpdate=0` to
 `%LOCALAPPDATA%\Glance\settings.ini`. What happened is logged in `%LOCALAPPDATA%\Glance\update\update.log`.
 
@@ -126,7 +129,7 @@ publish a release in the repository can publish an update.
    `version.txt`. Both names matter: installed copies fetch exactly those from the latest release, so an update
    goes out to everyone the moment the release is published. Mark a release as a pre-release to hold it back.
 
-The version shows in the help card (F1) as "Version 1.3.0 (commit)", in the installer's title bar, in the file
+The version shows in Glance's title bar, in the help card (F1) as "Version 1.4.0 (commit)", in the installer's title bar, in the file
 properties of both programs and under Settings > Apps > Installed apps. Use the third number for fixes, the second
 for new features.
 

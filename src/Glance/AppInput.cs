@@ -108,6 +108,7 @@ internal static unsafe partial class App
 
             case WM_MOUSEMOVE:
                 _mouseX = mx; _mouseY = my;
+                if (OverUpdate(mx, my) != _updHot) { _updHot = !_updHot; Invalidate(); }
                 if (_drag == 3) { DragSlider(mx); return true; }
                 if (_drag != 0 && _mesh != null) Drag(mx, my);
                 else if (_mesh != null && (_measure || _layFlat || _fixUnits || _picture || my < 64 * _scale || _hotButton >= 0)) { _hoverDirty = _measure || _layFlat; Invalidate(); }

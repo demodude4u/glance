@@ -35,7 +35,7 @@ def main():
     upd = os.path.join(data, "update")
     os.makedirs(rel)
     env = dict(os.environ, GLANCE_SETUP_DIR=inst, GLANCE_SETUP_LNK=os.path.join(out, "inst", "Glance.lnk"), GLANCE_DATA_DIR=data,
-               GLANCE_QUIET="1", GLANCE_UPDATE_URL="file:///" + rel.replace("\\", "/") + "/", GLANCE_UPDATE_NOW="1")
+               GLANCE_QUIET="1", GLANCE_UPDATE_URL="file:///" + rel.replace("\\", "/") + "/")
     exe = os.path.join(inst, "Glance.exe")
     marker = os.path.join(inst, "THIRD-PARTY-NOTICES.txt")           # deleted before each run: its return proves a reinstall
     C = "Software\\Classes\\"
@@ -58,6 +58,10 @@ def main():
     def session():
         return T.Session(exe, sample, env, out)
 
+    def press_update(s, state):
+        x, y = (int(v) for v in state["updateAt"].split(","))
+        s.post_many([(T.WM_LBUTTONDOWN, 1, s.xy(x, y)), (T.WM_LBUTTONUP, 0, s.xy(x, y))], gap=0.03)
+
     def close(s, linger=None):
         """Close the window; keep the desktop (and its kill-on-close job) alive while the installer finishes."""
         s.post(T.WM_CLOSE)
@@ -77,7 +81,9 @@ def main():
     s = session()
     looked = wait_for(lambda: os.path.exists(os.path.join(upd, "checked.txt")), 20)
     time.sleep(1.0)
-    check("Glance looks for a newer version after it has opened", looked)
+    check("Glance looks for a newer version every time it opens", looked)
+    time.sleep(1.5)
+    check("and shows nothing once it knows there is none", s.shot("up-to-date")["update"] == "None")
     check("nothing is downloaded when there is none", not os.path.exists(os.path.join(upd, "ready.txt")) and not os.path.exists(os.path.join(upd, "Glance.Setup.exe")))
     check("closing leaves the install alone", close(s) == 0 and not os.path.exists(marker))
 
@@ -96,7 +102,9 @@ def main():
     ready = wait_for(lambda: os.path.exists(os.path.join(upd, "ready.txt")), 40)
     check("the new installer is downloaded and verified in the background", ready and os.path.exists(os.path.join(upd, "Glance.Setup.exe")))
     time.sleep(1.0)
-    check("nothing is replaced while Glance is open", not os.path.exists(marker) and s.shot("still-open")["tris"] != "0")
+    st = s.shot("still-open")
+    check("nothing is replaced while Glance is open", not os.path.exists(marker) and st["tris"] != "0")
+    check("the Update button is showing, with the bar full", st["update"] == "Ready" and st["updateAt"] != "" and st["updateFill"] == "1.00", "%s fill %s" % (st["update"], st["updateFill"]))
     code = close(s, linger=lambda: os.path.exists(marker))
     log = os.path.join(upd, "update.log")
     check("closing Glance installs the update", code == 0 and os.path.exists(marker) and os.path.exists(exe),
@@ -111,13 +119,36 @@ def main():
     a = session()
     wait_for(lambda: os.path.exists(os.path.join(upd, "ready.txt")), 40)
     b = session()
+    time.sleep(1.0)
+    press_update(a, a.shot("two-windows"))
+    st = a.shot("two-windows-pressed")
+    check("Update with another window open asks for it to be closed first", "other Glance windows" in st["toast"] and not os.path.exists(marker), st["toast"])
     a.post(T.WM_CLOSE); HiddenDesktop.wait(a.hproc, 10); time.sleep(6.0)
     check("the update waits rather than closing the other window", not os.path.exists(marker) and b.shot("other-window")["tris"] != "0")
     a.desk.close()
     code = close(b, linger=lambda: os.path.exists(marker))
     check("and goes in once the last window is closed", os.path.exists(marker))
 
-    print("== 5: updates switched off in settings.ini ==")
+    print("== 5: pressing Update ==")
+    fresh(); publish("9.9.9", good)
+    s = session()
+    wait_for(lambda: os.path.exists(os.path.join(upd, "ready.txt")), 40)
+    time.sleep(1.0)
+    press_update(s, s.shot("before-update"))
+    code = HiddenDesktop.wait(s.hproc, 10)
+    check("pressing Update closes Glance", code == 0, "exit %s" % code)
+    check("and installs the update straight away", wait_for(lambda: os.path.exists(marker), 40))
+
+    def reopened():
+        return [t for h, pid, cls, t, vis in s.desk.windows() if cls == "GlanceWindow" and vis and pid != s.pid]
+    back = wait_for(lambda: len(reopened()) > 0, 30)
+    time.sleep(1.5)
+    titles = reopened()
+    check("then Glance comes back on the same file", back and any(os.path.basename(sample) in t for t in titles), str(titles))
+    s.desk.close()
+    time.sleep(1.0)
+
+    print("== 6: updates switched off in settings.ini ==")
     fresh()
     ini = os.path.join(data, "settings.ini")
     lines = [l for l in open(ini).read().splitlines() if not l.startswith("autoUpdate=")] + ["autoUpdate=0"]

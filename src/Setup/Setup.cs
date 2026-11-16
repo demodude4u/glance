@@ -305,6 +305,30 @@ internal static unsafe class Setup
     /// </summary>
     static int Update(string[] args)
     {
+        try { return Replace(args); }
+        finally { Reopen(args); }
+    }
+
+    /// <summary>
+    /// "--reopen [file]": the person pressed Update in a Glance window, which then closed. Whatever happened to the
+    /// update, give them their window back, on the file they were looking at.
+    /// </summary>
+    static void Reopen(string[] args)
+    {
+        try
+        {
+            int at = Array.IndexOf(args, "--reopen");
+            string exe = Path.Combine(Target, "Glance.exe");
+            if (at < 0 || !File.Exists(exe)) return;
+            var start = new ProcessStartInfo(exe) { UseShellExecute = false };
+            if (at + 1 < args.Length && !args[at + 1].StartsWith("--") && File.Exists(args[at + 1])) start.ArgumentList.Add(args[at + 1]);
+            Process.Start(start)?.Dispose();
+        }
+        catch (Exception ex) { Log("could not reopen Glance: " + ex.Message); }
+    }
+
+    static int Replace(string[] args)
+    {
         int at = Array.IndexOf(args, "--wait-pid");
         if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out int pid))
             try { using var parent = Process.GetProcessById(pid); parent.WaitForExit(15000); } catch { }      // already gone

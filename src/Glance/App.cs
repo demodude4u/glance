@@ -148,7 +148,7 @@ internal static unsafe partial class App
     {
         nint inst = GetModuleHandleW(null);
         fixed (char* cls = "GlanceWindow")
-        fixed (char* title = "Glance")
+        fixed (char* title = "Glance " + AppVersion.Number)
         {
             var wc = new WNDCLASSEXW
             {
@@ -265,7 +265,7 @@ internal static unsafe partial class App
     static void UpdateTitle()
     {
         string name = _loading ? _loadName : _path != null ? Path.GetFileName(_path) : "";
-        string t = name.Length > 0 ? name + " — Glance" : "Glance";
+        string t = (name.Length > 0 ? name + " — Glance " : "Glance ") + AppVersion.Number;
         fixed (char* p = t) SetWindowTextW(_hwnd, p);
     }
 
@@ -608,6 +608,7 @@ internal static unsafe partial class App
         }
 
         if (_loading) moving = true;
+        if (UpdateTick(dt)) moving = true;
         if (_toast.Length > 0) { if (Seconds(_toastAt) > _toastFor) _toast = ""; else moving = true; }
         return moving || _snapshot != null;
     }
@@ -760,7 +761,7 @@ internal static unsafe partial class App
             $"edges={_edges}", $"edgeLines={(m?.EdgeLines?.Length ?? 0) / 6}", $"wire={_wire}", $"shading={ShadingName.Replace(' ', '_')}", $"grid={_grid}", $"ortho={_ortho}",
             $"dark={_theme.Dark}", $"material={Theme.Materials[MaterialIndex].Name}", $"fileColors={_fileColors && R.HasColors}",
             $"smooth={_smooth && m?.SmoothNrm != null}", $"yUp={_yUp}", $"layFlat={_layFlat}", $"custom={_customOrient}", $"worldDims={_wMax.X - _wMin.X:0.000},{_wMax.Y - _wMin.Y:0.000},{_wMax.Z - _wMin.Z:0.000}", $"help={_help}", $"info={_info}", $"spin={_spin}",
-            $"toast={_toast}", $"picture={_picture}", $"picButtons={string.Join(";", _picButtons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}", $"pictureSize={PictureSize().W}x{PictureSize().H}", $"fixUnits={_fixUnits}", $"unitRows={string.Join(";", _unitRows.Select(r => $"{r.X + r.W / 2:0},{r.Y + r.H / 2:0}"))}", $"fileUnit={m?.FileUnit}", $"unitSource={m?.UnitSource}", $"dims={(m != null ? $"{m.Max.X - m.Min.X:0.000},{m.Max.Y - m.Min.Y:0.000},{m.Max.Z - m.Min.Z:0.000}" : "")}", $"measure={_measure}", $"hover={_hover?.Kind}", $"selA={_selA?.Kind}", $"selB={_selB?.Kind}",
+            $"toast={_toast}", $"update={Updater.State}", $"updateFill={_updFill:0.00}", $"updateAt={(_updA > 0 ? $"{_updRect.X + _updRect.W / 2:0},{_updRect.Y + _updRect.H / 2:0}" : "")}", $"picture={_picture}", $"picButtons={string.Join(";", _picButtons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}", $"pictureSize={PictureSize().W}x{PictureSize().H}", $"fixUnits={_fixUnits}", $"unitRows={string.Join(";", _unitRows.Select(r => $"{r.X + r.W / 2:0},{r.Y + r.H / 2:0}"))}", $"fileUnit={m?.FileUnit}", $"unitSource={m?.UnitSource}", $"dims={(m != null ? $"{m.Max.X - m.Min.X:0.000},{m.Max.Y - m.Min.Y:0.000},{m.Max.Z - m.Min.Z:0.000}" : "")}", $"measure={_measure}", $"hover={_hover?.Kind}", $"selA={_selA?.Kind}", $"selB={_selB?.Kind}",
             $"result={(_result != null ? _result.Title + "|" + _result.Value.ToString("0.0000") : _selA != null ? Single(_selA) : "")}",
             $"section={_section}", $"sectionPos={_sectionPos:0.000}", $"inch={_inch}", $"box={_box}", $"watertight={m?.Closed}",
             $"ppu={_h / (2 * _cur.Dist * MathF.Tan(Fov / 2)):0.00000}", $"regions={m?.Regions.Count ?? 0}", $"chains={(m?.ChainClosed?.Length ?? 0)}", $"loadMs={_loadMs:0.0}", $"cache={m?.FromCache}", $"size={_w}x{_h}", $"scale={_scale}", $"fonts={(U.Body.Name + "/" + U.Medium.Name + "/" + U.Title.Name).Replace(' ', '_')}", $"fontsLoaded={BundledFonts.Loaded}", $"version={AppVersion.Full.Replace(' ', '_')}", $"buttons={string.Join(";", _buttons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}"));
