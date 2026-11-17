@@ -642,8 +642,7 @@ internal static unsafe partial class App
                 var above = new Matrix4x4(1 / floorExtent, 0, 0, 0, 0, 1 / floorExtent, 0, 0, 0, 0, 0, 0, -_center.X / floorExtent, -_center.Y / floorExtent, 0, 1);
                 R.ShadowMap(sm * above, sclip);
             }
-            // Where the part stands on the ground it is darkened a little, over a short reach so that it reads as contact.
-            R.SetStudio(sp, _ortho, _radius * 0.20f, _theme.Dark, light, surface, ground && se.Z > floorZ ? _radius * 0.045f : 0);
+            R.SetStudio(sp, _ortho, _radius * 0.20f, _theme.Dark, light, surface);
             R.Occlusion(sm * sv, sm * svp, sclip, _w, _h);
         }
         R.Begin(_w, _h, _shotAlpha);

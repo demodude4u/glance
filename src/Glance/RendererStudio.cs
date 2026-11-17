@@ -12,7 +12,6 @@ internal sealed unsafe partial class Renderer
 {
     uint _render, _floor, _ao;
     uint _aoFbo, _aoTex, _aoDepth; int _aoW, _aoH;
-    float _groundReach;
     uint _depthFbo, _depthTex; int _depthW, _depthH;
     uint _shadowFbo, _shadowTex;
     const int ShadowSize = 512;
@@ -70,7 +69,7 @@ internal sealed unsafe partial class Renderer
         uniform vec3 uBase; uniform float uFlat; uniform float uUseCol; uniform float uOrtho; uniform float uStyle;
         uniform vec4 uCut; uniform sampler2D uDepth; uniform vec4 uProj; uniform vec2 uScreen; uniform float uAoR; uniform float uDark;
         uniform vec3 uLight; uniform vec4 uLightMix; uniform float uSurface;
-        uniform sampler2D uAo; uniform vec4 uUp; uniform float uGround;
+        uniform sampler2D uAo;
         in vec3 vView; in vec3 vNrm; in vec4 vCol; out vec4 o;
 
         // How open the surface is to its surroundings: 1 in the open, lower in corners and holes. The occlusion
@@ -92,14 +91,6 @@ internal sealed unsafe partial class Renderer
           return wsum > 1e-3 ? sum / wsum : texelFetch(uAo, clamp(c, ivec2(0), top), 0).r;
         }
 
-        // A little darker where the part meets the ground: strongest on faces that look down at it, half as
-        // much on upright walls, none on faces that look up, and gone within uGround of the ground.
-        float grounded(vec3 P, vec3 N){
-          if (uGround <= 0.0) return 1.0;
-          float near = clamp(1.0 - max(dot(P, uUp.xyz) - uUp.w, 0.0) / uGround, 0.0, 1.0);
-          return 1.0 - 0.75 * (0.5 - 0.5 * dot(N, uUp.xyz)) * near * near;
-        }
-
         // A photo studio seen in reflection: dark floor, grey walls, a large soft light overhead and a strip to one side.
         vec3 studio(vec3 R){
           vec3 e = mix(vec3(0.17), vec3(0.52), smoothstep(-0.65, 0.15, R.y));
@@ -118,7 +109,7 @@ internal sealed unsafe partial class Renderer
           vec3 N = uFlat > 0.5 ? normalize(cross(dFdx(vView), dFdy(vView))) : normalize(vNrm);
           vec3 V = uOrtho > 0.5 ? vec3(0.0, 0.0, 1.0) : normalize(-vView);
           if (dot(N, V) < 0.0) N = -N;
-          float open = openness(vView, N) * grounded(vView, N);
+          float open = openness(vView, N);
           vec3 base = mix(uBase, vCol.rgb, vCol.a * uUseCol);
           if (uStyle < 4.5) {
             // Studio: matte clay under a soft sky with one broad light, no highlights.
@@ -198,11 +189,9 @@ internal sealed unsafe partial class Renderer
 
     /// <param name="light">Studio's light: 0 soft, 1 from the left, 2 from the right, 3 from above.</param>
     /// <param name="surface">Metal's finish: 0 polished, 1 satin, 2 matte.</param>
-    /// <param name="groundReach">How far above the ground the part is darkened where it meets it; 0 for not at all.</param>
-    public void SetStudio(Matrix4x4 proj, bool ortho, float aoRadius, bool dark, int light = 0, int surface = 1, float groundReach = 0)
+    public void SetStudio(Matrix4x4 proj, bool ortho, float aoRadius, bool dark, int light = 0, int surface = 1)
     {
         _studioProj = proj; _studioOrtho = ortho; _aoRadius = aoRadius; _studioDark = dark; _studioLight = light; _metalSurface = surface;
-        _groundReach = groundReach;
     }
 
     void StudioUniforms(uint p)
@@ -230,7 +219,6 @@ internal sealed unsafe partial class Renderer
         ActiveTexture(TEXTURE3); glBindTexture(TEXTURE_2D, _aoTex);
         Uniform1i(Loc(p, "uAo"), 3);
         ActiveTexture(TEXTURE0);
-        Uniform1f(Loc(p, "uGround"), _groundReach);
     }
 
     /// <summary>

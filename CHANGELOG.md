@@ -5,8 +5,8 @@ The version number lives in `src\Directory.Build.props`. Each release is tagged 
 ## 1.5.1 (2026-11-17)
 
 - **Cleaner Studio and Metal shading.** The soft shadows in corners and holes are now smooth instead of speckled.
-  Where a part stands on the ground it is darkened only close to the ground, as a thin line of contact; a thin
-  flat part no longer has its whole edge darkened.
+  The part itself is no longer darkened where it stands on the ground, which used to darken the whole edge of a
+  thin flat part; the soft shadow on the ground is unchanged.
 
 ## 1.5.0 (2026-11-17)
 
