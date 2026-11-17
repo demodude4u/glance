@@ -16,7 +16,7 @@ public static class DefaultApp {
 }
 '@
 $ok = $true
-foreach ($ext in '.stl', '.obj', '.step', '.stp', '.igs', '.iges') {
+foreach ($ext in '.stl', '.obj', '.3mf', '.ply', '.glb', '.gltf', '.step', '.stp', '.igs', '.iges') {
     $id = [DefaultApp]::For($ext)
     $cmd = (Get-ItemProperty "Registry::HKEY_CLASSES_ROOT\$id\shell\open\command" -ErrorAction SilentlyContinue).'(default)'
     if ($id -notlike 'Glance.*') { $ok = $false }

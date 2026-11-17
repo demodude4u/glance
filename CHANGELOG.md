@@ -2,6 +2,26 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
+## 1.6.0 (not yet released)
+
+- **3MF files.** Glance opens `.3mf`: the mesh objects, placed by components and by the build's items with their
+  transforms, so a file of several parts comes in with each part where it belongs. Objects kept in other model
+  parts of the package, the way slicers save projects, are found too. The size is right without asking: the unit
+  comes from the file (millimeters when it states none). Materials, colours, textures and slices are not read.
+- **PLY files.** Text and binary `.ply` in either byte order, with normals and colours per vertex where the file
+  has them, and faces as triangles, polygons or triangle strips. PLY has no units, so it works like STL: Glance
+  guesses, and **Fix units** changes it. A point cloud says that it has no surfaces to show.
+- **glTF files.** `.glb` and `.gltf` (glTF 2.0): the scene's nodes with their transforms, meshes with or without
+  indices, normals, the material's base colour and vertex colours; the data may be in the file, in `.bin` files
+  beside it or embedded in the text. glTF is in meters with Y up, so the model comes in at its true size in
+  millimeters and standing the right way up. Textures, skins and animation are not read. A file packed with Draco
+  or meshopt compression is refused with a message saying so.
+- The three formats are everywhere the others are: double-click (the installer registers `.3mf`, `.ply`, `.glb`
+  and `.gltf`), right-click **Open in Glance**, drag and drop, **O**, and the arrow keys through a folder. A file
+  that is damaged or cut short shows a message instead of a model.
+- Opening STL, OBJ, STEP and IGES is unchanged: the new readers are only touched when a file of their type is
+  opened.
+
 ## 1.5.2 (2026-11-17)
 
 - No changes to how Glance works. Released to check the update path end to end on a real install.

@@ -33,7 +33,7 @@ internal static unsafe partial class App
     static float _radius = 1;
 
     // Orientation of the model in the Z-up world (a pure rotation, row-vector convention like System.Numerics).
-    // Identity for Z-up files, YUp for OBJ, or whatever "Lay flat" produced.
+    // Identity for Z-up files, YUp for OBJ and glTF, or whatever "Lay flat" produced.
     static readonly Matrix4x4 YUp = new(1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1);
     static Matrix4x4 _orient = Matrix4x4.Identity, _orientNow = Matrix4x4.Identity;
     static Quaternion _orientFrom = Quaternion.Identity;
@@ -387,7 +387,7 @@ internal static unsafe partial class App
     static void OpenDialog()
     {
         char* buf = stackalloc char[2048]; buf[0] = '\0';
-        fixed (char* filter = "3D models\0*.stl;*.obj;*.step;*.stp;*.iges;*.igs;*.brep\0All files\0*.*\0\0")
+        fixed (char* filter = "3D models\0*.stl;*.obj;*.3mf;*.ply;*.glb;*.gltf;*.step;*.stp;*.iges;*.igs;*.brep\0All files\0*.*\0\0")
         {
             var ofn = new OPENFILENAMEW
             {
@@ -749,7 +749,7 @@ internal static unsafe partial class App
         WriteBmp(_snapshot!, px);
         string report = _error != null ? "error: " + _error
             : _mesh == null ? "empty"
-            : $"ok tris={_mesh.TriCount} verts={_mesh.VertexCount} loadMs={_loadMs:0.0} edges={(_mesh.EdgeLines?.Length ?? 0) / 6} closed={_mesh.Closed} fileUnit={_mesh.FileUnit} unitSource={_mesh.UnitSource} dimX={_mesh.Max.X - _mesh.Min.X:0.000} area={_mesh.Area:0.###} volume={_mesh.Volume:0.###} cache={_mesh.FromCache} size={_w}x{_h} scale={_scale} preMain={PreMain:0} created={_tCreated:0} shown={_tShown:0} fonts={_tFonts:0} warm={_tWarm:0} ctx={_tCtx:0} shaders={_tShaders:0} gl={_tGl:0} firstFrame={_tFirst:0} parse={_mesh.ParseMs:0}{_marks} renderer={System.Runtime.InteropServices.Marshal.PtrToStringAnsi(GL.glGetString(0x1F01))} smooth={_mesh.Nrm != null}";
+            : $"ok tris={_mesh.TriCount} verts={_mesh.VertexCount} loadMs={_loadMs:0.0} edges={(_mesh.EdgeLines?.Length ?? 0) / 6} closed={_mesh.Closed} fileUnit={_mesh.FileUnit} unitSource={_mesh.UnitSource} format={_mesh.Format} dims={_mesh.Max.X - _mesh.Min.X:0.000},{_mesh.Max.Y - _mesh.Min.Y:0.000},{_mesh.Max.Z - _mesh.Min.Z:0.000} yUp={_mesh.YUp} colors={_mesh.Col != null} dimX={_mesh.Max.X - _mesh.Min.X:0.000} area={_mesh.Area:0.###} volume={_mesh.Volume:0.###} cache={_mesh.FromCache} size={_w}x{_h} scale={_scale} preMain={PreMain:0} created={_tCreated:0} shown={_tShown:0} fonts={_tFonts:0} warm={_tWarm:0} ctx={_tCtx:0} shaders={_tShaders:0} gl={_tGl:0} firstFrame={_tFirst:0} parse={_mesh.ParseMs:0}{_marks} renderer={System.Runtime.InteropServices.Marshal.PtrToStringAnsi(GL.glGetString(0x1F01))} smooth={_mesh.Nrm != null}";
         try { File.WriteAllText(_snapshot + ".txt", report); } catch { }
         Environment.ExitCode = _error != null ? 3 : 0;
         _quit = true;
@@ -792,7 +792,7 @@ internal static unsafe partial class App
             $"toast={_toast}", $"update={Updater.State}", $"updateFill={_updFill:0.00}", $"updateAt={(_updA > 0 ? $"{_updRect.X + _updRect.W / 2:0},{_updRect.Y + _updRect.H / 2:0}" : "")}", $"picture={_picture}", $"picButtons={string.Join(";", _picButtons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}", $"pictureSize={PictureSize().W}x{PictureSize().H}", $"pictureChoice={PictureSizes[PictureChoice()].Key}", $"pictureLimited={PictureSize().Limited}", $"pictureFrame={PictureFrame().X:0.0},{PictureFrame().Y:0.0},{PictureFrame().W:0.0},{PictureFrame().H:0.0}", $"pictureCard={_picCard.X:0},{_picCard.Y:0},{_picCard.W:0},{_picCard.H:0}",
             $"units={(Settings.Units == 1 ? "in" : Settings.Units == 2 ? "frac" : "mm")}", $"sizeText={(m != null ? Len3(ShownSize().X, ShownSize().Y, ShownSize().Z) : "")}", $"resultText={(_result != null ? (_result.IsAngle ? Deg(_result.Value) : Len(_result.Value)) : "")}",
             $"options={string.Join(";", (ModeOptions() ?? []).Select(o => o.Label + ":" + o.Name))}", $"optionRects={string.Join(";", _buttons.Where(b => b.Action >= 100).Select(b => $"{b.X:0},{b.Y:0},{b.W:0},{b.H:0}"))}", $"optionLines={_optLines}", $"toolbarLines={_toolbarLines}", $"buttonRects={string.Join(";", _buttons.Select(b => $"{b.Action}:{b.X:0},{b.Y:0},{b.W:0},{b.H:0}"))}", $"solidPills={_solidPills}",
-            $"sliderBox={_sliderBox.X:0},{_sliderBox.Y:0},{_sliderBox.W:0},{_sliderBox.H:0}", $"toastY={_toastY:0}", $"toolbarRight={_toolbarRight:0}", $"fixUnits={_fixUnits}", $"unitRows={string.Join(";", _unitRows.Select(r => $"{r.X + r.W / 2:0},{r.Y + r.H / 2:0}"))}", $"fileUnit={m?.FileUnit}", $"unitSource={m?.UnitSource}", $"dims={(m != null ? $"{m.Max.X - m.Min.X:0.000},{m.Max.Y - m.Min.Y:0.000},{m.Max.Z - m.Min.Z:0.000}" : "")}", $"measure={_measure}", $"hover={_hover?.Kind}", $"selA={_selA?.Kind}", $"selB={_selB?.Kind}",
+            $"sliderBox={_sliderBox.X:0},{_sliderBox.Y:0},{_sliderBox.W:0},{_sliderBox.H:0}", $"toastY={_toastY:0}", $"toolbarRight={_toolbarRight:0}", $"fixUnits={_fixUnits}", $"unitRows={string.Join(";", _unitRows.Select(r => $"{r.X + r.W / 2:0},{r.Y + r.H / 2:0}"))}", $"fileUnit={m?.FileUnit}", $"format={m?.Format}", $"unitSource={m?.UnitSource}", $"dims={(m != null ? $"{m.Max.X - m.Min.X:0.000},{m.Max.Y - m.Min.Y:0.000},{m.Max.Z - m.Min.Z:0.000}" : "")}", $"measure={_measure}", $"hover={_hover?.Kind}", $"selA={_selA?.Kind}", $"selB={_selB?.Kind}",
             $"result={(_result != null ? _result.Title + "|" + _result.Value.ToString("0.0000") : _selA != null ? Single(_selA) : "")}",
             $"section={_section}", $"sectionPos={_sectionPos:0.000}", $"inch={_inch}", $"box={_box}", $"watertight={m?.Closed}",
             $"ppu={_h / (2 * _cur.Dist * MathF.Tan(Fov / 2)):0.00000}", $"regions={m?.Regions.Count ?? 0}", $"chains={(m?.ChainClosed?.Length ?? 0)}", $"loadMs={_loadMs:0.0}", $"cache={m?.FromCache}", $"size={_w}x{_h}", $"scale={_scale}", $"fonts={(U.Body.Name + "/" + U.Medium.Name + "/" + U.Title.Name).Replace(' ', '_')}", $"fontsLoaded={BundledFonts.Loaded}", $"version={AppVersion.Full.Replace(' ', '_')}", $"buttons={string.Join(";", _buttons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}"));

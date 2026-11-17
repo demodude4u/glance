@@ -159,7 +159,7 @@ def main():
     exe = os.path.join(inst, "Glance.exe")
     C = "Software\\Classes\\"
     menu_key = C + "SystemFileAssociations\\%s\\shell\\Glance\\command"
-    exts = (".stl", ".obj", ".step", ".stp", ".iges", ".igs")
+    exts = (".stl", ".obj", ".3mf", ".ply", ".glb", ".gltf", ".step", ".stp", ".iges", ".igs")
 
     print("== 1: both boxes ticked (the default) ==")
     report = os.path.join(out, "fonts.txt")

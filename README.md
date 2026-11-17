@@ -1,10 +1,10 @@
 # Glance
 
-A small, very fast 3D model viewer for Windows 11. Double-click an STL, OBJ, STEP or IGES file and it is on
-screen before you have let go of the mouse.
+A small, very fast 3D model viewer for Windows 11. Double-click an STL, OBJ, 3MF, PLY, glTF, STEP or IGES file
+and it is on screen before you have let go of the mouse.
 
 - **Fast.** Native code, no runtime to start. The window opens with the model already in it, about a tenth of
-  a second after launch for STL and OBJ (a 1,000,000-triangle STL included).
+  a second after launch for STL, OBJ, 3MF, PLY and glTF (a 1,000,000-triangle STL included).
 - **STEP without the wait.** STEP and IGES are read by a native OpenCascade helper on all cores, then cached,
   so a file you have opened before comes back as fast as an STL. While you look at one model, Glance quietly
   prepares the other STEP files in the same folder.
@@ -34,7 +34,7 @@ screen before you have let go of the mouse.
 | B | Bounding-box dimensions on the model |
 | L | Lay flat: click a face and the model turns to rest on it (Z puts it back) |
 | U | Show millimeters, inches, or inches as fractions (also the toolbar button) |
-| Shift+U | STL / OBJ only: Fix units, choose what unit the file's numbers are in |
+| Shift+U | STL, OBJ and PLY only: Fix units, choose what unit the file's numbers are in |
 | I | Details: size, triangles, surface area, volume, watertight |
 | ← → | Previous / next model in the folder |
 | R | Turntable |
@@ -95,9 +95,26 @@ remembered for that mode.
 Until a backdrop or paper is chosen it follows the light / dark theme, as before. On one that does not suit the
 theme (a dark backdrop in the light theme, say) the buttons turn solid so they stay readable.
 
+### File formats
+
+| | What Glance reads | Units |
+|---|---|---|
+| STL (`.stl`) | Binary and text | None in the file: see Units |
+| OBJ (`.obj`) | Faces of any number of sides, normals, material colours from the `.mtl` beside it | None in the file: see Units |
+| 3MF (`.3mf`) | Mesh objects, placed by components and by the build's items with their transforms, including objects kept in other model parts of the package (as slicers write them) | The unit the model states, millimeters if it states none |
+| PLY (`.ply`) | Text and binary in either byte order; positions, normals and colours per vertex; faces as triangles, polygons or triangle strips | None in the file: see Units |
+| glTF (`.glb`, `.gltf`) | glTF 2.0: the scene's nodes with matrix or translation / rotation / scale transforms, triangle meshes with or without indices, normals, base colour and vertex colours; data in the file, in `.bin` files beside it or embedded in the text | Meters, and Y up: shown in millimeters, standing the right way up |
+| STEP (`.step`, `.stp`), IGES (`.iges`, `.igs`) | Solids and surfaces with their colours, through OpenCascade | The unit the file states |
+
+Not read: materials, colours, textures and slices in 3MF; textures, skins, animation and morph targets in glTF
+(the model is shown as it rests); glTF 1.0; point clouds. A glTF packed with Draco or meshopt compression is
+refused with a message saying so: export it without compression. A PLY that holds only points says it is a point
+cloud. A file that is damaged or cut short shows a message in the window, never a crash.
+
 ### Units
 
-STEP and IGES files state their units. STL and OBJ are bare numbers, so Glance decides in this order:
+STEP, IGES and 3MF files state their units, and glTF is always in meters. STL, OBJ and PLY are bare numbers, so
+Glance decides in this order:
 your earlier choice for that file, a unit written in the file's header (for example `Units=Inch`), or a
 guess: a part whose largest dimension is under 6 is read as inches, anything else as millimeters. A guess that
 changed the size rings the **Fix units** button on the toolbar. Click it (or press **Shift+U**) to see how big the
@@ -114,7 +131,8 @@ details card; areas, volumes and angles are unchanged.
 
 Give people one file, `Glance.Setup.exe` from the [latest release](https://github.com/demodude4u/glance/releases/latest) (about 21 MB; built here as `dist\Glance Setup.exe`). Running it shows two boxes, both ticked:
 
-- **Open model files with Glance**: double-clicking an STL, OBJ, STEP or IGES file opens it in Glance.
+- **Open model files with Glance**: double-clicking an STL, OBJ, 3MF, PLY, glTF (`.glb`, `.gltf`), STEP or IGES
+  file opens it in Glance.
 - **Add "Open in Glance" to the right-click menu**: works whichever app is set to open the file. On Windows 11
   it is under **Show more options** (or Shift+right-click); the short menu only takes signed, packaged apps.
 
@@ -195,10 +213,11 @@ Not shipped: a software OpenGL fallback. Glance needs a graphics driver with Ope
 
 | | |
 |---|---|
-| `src\Glance` | The viewer: C# compiled ahead-of-time to a 2 MB native exe. Hand-written Win32 window, OpenGL 3.3 renderer, STL/OBJ parsers, HUD. The graphics driver starts loading on its own thread the moment the process starts. |
+| `src\Glance` | The viewer: C# compiled ahead-of-time to a 2 MB native exe. Hand-written Win32 window, OpenGL 3.3 renderer, HUD, and its own small parsers for STL, OBJ, 3MF, PLY and glTF (`Loaders*.cs`; each is only touched when a file of its type is opened). The graphics driver starts loading on its own thread the moment the process starts. |
 | `src\StepNative` | `glance-step.exe`: C++ on OpenCascade. Reads STEP/IGES, tessellates in parallel, writes a packed mesh. Runs as a separate process so a bad CAD file can never take the viewer down. |
 | `tools\build_step.py` | Builds the reader and ships only the 25 OpenCascade DLLs it needs. The codec, font and VR libraries the official build imports but the reader never calls are replaced with tiny stand-in DLLs. |
 | `tools\hidden_test.py` | End-to-end test on a hidden desktop: opens every format, then drives one window with real mouse and keyboard messages and checks the result. |
+| `tools\make_samples.py` | Writes the small sample models the tests open: STL, OBJ, 3MF, PLY and glTF files of known size. |
 
 Settings and the STEP cache live in `%LOCALAPPDATA%\Glance` (cache capped at 1 GB, oldest first).
 Colours and type: Cobalt, Golden Amber, Slate, Charcoal and Ivory, set in Roboto.

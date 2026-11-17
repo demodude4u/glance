@@ -176,7 +176,8 @@ internal static partial class App
         float cx = _w / 2f, cy = _h / 2f - 34 * s;
         U.Rect(cx - 14 * s, cy - 18 * s, 28 * s, 3 * s, 1.5f * s, _theme.Accent);
         U.TextCentered(U.Title, "Drop a model to take a look", cx, cy, _theme.Text);
-        U.TextCentered(U.Body, "STL  ·  OBJ  ·  STEP  ·  IGES      or press O to browse", cx, cy + U.Title.Height + 10 * s, _theme.Dim);
+        U.TextCentered(U.Body, "STL  ·  OBJ  ·  3MF  ·  PLY  ·  glTF  ·  STEP  ·  IGES", cx, cy + U.Title.Height + 10 * s, _theme.Dim);
+        U.TextCentered(U.Body, "or press O to browse", cx, cy + U.Title.Height + U.Body.Height + 16 * s, Fade(_theme.Dim, 0.75f));
     }
 
     static void ErrorState(float s)
@@ -233,7 +234,7 @@ internal static partial class App
     static readonly (string Key, string What)[] HelpRight =
     [
         ("V", "Shading, with options under the toolbar"), ("E", "Edges"), ("W", "Wireframe"), ("S", "Smooth / flat shading"), ("G", "Grid"), ("C", "Color"), ("T", "Light / dark"),
-        ("B", "Bounding box"), ("U", "Show mm / inch / inch fractions"), ("Shift U", "STL / OBJ: file's own units"), ("Z", "Flip the up axis / undo lay flat"), ("I", "Details"), ("← →", "Previous / next file"), ("O", "Open a file"),
+        ("B", "Bounding box"), ("U", "Show mm / inch / inch fractions"), ("Shift U", "STL / OBJ / PLY: file's own units"), ("Z", "Flip the up axis / undo lay flat"), ("I", "Details"), ("← →", "Previous / next file"), ("O", "Open a file"),
         ("Ctrl C", "Copy a picture"), ("Ctrl S", "Save a picture (PNG, Full HD, 4K…)"), ("Esc", "Close"),
     ];
 

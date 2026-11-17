@@ -6,9 +6,9 @@ using System.Text;
 
 namespace Glance;
 
-internal static unsafe class Loaders
+internal static unsafe partial class Loaders
 {
-    public static readonly string[] Extensions = [".stl", ".obj", ".step", ".stp", ".iges", ".igs", ".brep"];
+    public static readonly string[] Extensions = [".stl", ".obj", ".3mf", ".ply", ".glb", ".gltf", ".step", ".stp", ".iges", ".igs", ".brep"];
 
     public static bool Supported(string path) =>
         Array.IndexOf(Extensions, Path.GetExtension(path).ToLowerInvariant()) >= 0;
@@ -26,16 +26,19 @@ internal static unsafe class Loaders
         {
             ".stl" => LoadStl(path),
             ".obj" => LoadObj(path),
+            ".3mf" => Load3mf(path),
+            ".ply" => LoadPly(path),
+            ".glb" or ".gltf" => LoadGltf(path),
             ".step" or ".stp" => LoadCad(path, "step", stage, cancelled),
             ".iges" or ".igs" => LoadCad(path, "iges", stage, cancelled),
             ".brep" => LoadCad(path, "brep", stage, cancelled),
-            _ => throw new InvalidDataException("Glance opens STL, OBJ, STEP and IGES files."),
+            _ => throw new InvalidDataException("Glance opens STL, OBJ, 3MF, PLY, glTF, STEP and IGES files."),
         };
         if (m.TriCount == 0) throw new InvalidDataException("There are no surfaces in this file.");
-        m.Format = ext switch { ".stp" => "STEP", ".igs" => "IGES", _ => ext[1..].ToUpperInvariant() };
+        m.Format = ext switch { ".stp" => "STEP", ".igs" => "IGES", ".gltf" => "glTF", _ => ext[1..].ToUpperInvariant() };
         m.FileSize = new FileInfo(path).Length;
         m.ComputeBounds();
-        if (ext is ".stl" or ".obj") ApplyUnits(m, path);
+        if (ext is ".stl" or ".obj" or ".ply") ApplyUnits(m, path);
         m.ParseMs = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
         return m;
     }
@@ -44,9 +47,10 @@ internal static unsafe class Loaders
 
     public static readonly string[] UnitNames = ["mm", "in", "cm", "m", "ft"];
 
-    public static float UnitToMm(string u) => u switch { "in" => 25.4f, "cm" => 10f, "m" => 1000f, "ft" => 304.8f, _ => 1f };
+    // "um" (microns) is a unit a 3MF file may state; it is not one of the choices offered for files without units.
+    public static float UnitToMm(string u) => u switch { "in" => 25.4f, "cm" => 10f, "m" => 1000f, "ft" => 304.8f, "um" => 0.001f, _ => 1f };
 
-    public static string UnitLabel(string u) => u switch { "in" => "inches", "cm" => "centimeters", "m" => "meters", "ft" => "feet", _ => "millimeters" };
+    public static string UnitLabel(string u) => u switch { "in" => "inches", "cm" => "centimeters", "m" => "meters", "ft" => "feet", "um" => "microns", _ => "millimeters" };
 
     static string UnitsFile => Path.Combine(DataDir, "units.ini");
 
@@ -111,7 +115,7 @@ internal static unsafe class Loaders
     }
 
     /// <summary>
-    /// STL and OBJ are bare numbers. Take the user's earlier choice, else what the file states, else a guess:
+    /// STL, OBJ and PLY are bare numbers. Take the user's earlier choice, else what the file states, else a guess:
     /// a part whose largest dimension is under 6 is far more likely to be inches than a 6 mm speck.
     /// The mesh is then scaled so that everything downstream works in millimeters.
     /// </summary>

@@ -8,6 +8,9 @@ a separate helper package), with settings and cache redirected to a scratch fold
 Part 1 opens each sample format and records how long the first picture took.
 Part 2 keeps one window open and drives it with real window messages (mouse drags, wheel, double-click, keys),
 asking the app for a picture and its state after each step and checking the state changed the way it should.
+Later parts cover measuring, units, pictures, mode options and the update indicator; the last opens the 3MF, PLY
+and glTF samples from tools/make_samples.py and checks their triangle counts, sizes and units, then a broken file
+of each kind.
 """
 import ctypes
 import os
@@ -916,6 +919,153 @@ def fraction_and_option_tests(exe, S, env, out):
     check("settings are written back in the new form", "units=frac" in ini and "pictureSize=4k" in ini and "inch=" not in ini and "pictureScale" not in ini, ini.replace("\n", " "))
 
 
+def mesh_format_tests(exe, S, env, out):
+    """3MF, PLY and glTF: the samples tools/make_samples.py writes have known sizes, triangle counts and units."""
+    import json
+    import struct
+    import zipfile
+    print("== Part 7: 3MF, PLY and glTF ==")
+
+    def themed(theme):
+        data = os.path.join(out, "data-formats-" + theme)
+        shutil.rmtree(data, ignore_errors=True)
+        os.makedirs(data)
+        with open(os.path.join(data, "settings.ini"), "w") as fh_:
+            fh_.write("theme=%s\nseenHint=1\n" % theme)
+        return dict(env, GLANCE_DATA_DIR=data)
+
+    dark, light = themed("dark"), themed("light")
+
+    #  file, Format row, triangles, size in mm in the file's axes, file unit, how the unit is known, colours, own normals, Y up
+    cases = [
+        ("assembly.3mf", "3MF", 48, (40, 50, 35), "mm", "0", False, False, False),
+        ("block-inch.3mf", "3MF", 12, (50.8, 25.4, 12.7), "in", "0", False, False, False),
+        ("box-ascii.ply", "PLY", 12, (30, 20, 10), "mm", "1", True, False, False),
+        ("box-binary.ply", "PLY", 12, (60, 40, 20), "mm", "1", True, True, False),
+        ("box-big-endian.ply", "PLY", 12, (76.2, 50.8, 25.4), "in", "1", False, False, False),
+        ("plate-strips.ply", "PLY", 20, (20, 10, 0), "mm", "1", False, False, False),
+        ("blocks.glb", "GLB", 24, (120, 160, 150), "m", "0", True, True, True),
+        ("two-blocks.gltf", "glTF", 24, (110, 20, 30), "m", "0", True, False, True),
+    ]
+    what = {"assembly.3mf": "a 3MF of several parts placed by components and build items",
+            "block-inch.3mf": "a 3MF in inches, uncompressed, with prefixed elements",
+            "box-ascii.ply": "a text PLY with quads and vertex colours",
+            "box-binary.ply": "a binary PLY with normals, colours and data to skip",
+            "box-big-endian.ply": "a big-endian PLY with doubles, small enough to be inches",
+            "plate-strips.ply": "a PLY made of triangle strips",
+            "blocks.glb": "a GLB with nodes moved by TRS and by a matrix",
+            "two-blocks.gltf": "a glTF with a .bin beside it and a buffer inside it"}
+    for name, fmt, tris, size, unit, source, colors, normals, yup in cases:
+        stem = name.replace(".", "-")
+        code, dt, rep = snapshot(exe, os.path.join(out, "format-%s-dark.png" % stem), dark, S(name))
+        dims = [float(v) for v in (field(rep, "dims") or "0,0,0").split(",")]
+        ok = code == 0 and rep.startswith("ok")
+        check("open " + what[name], ok and int(field(rep, "tris") or 0) == tris and all(abs(d - e) < 0.01 for d, e in zip(dims, size)),
+              "%s triangles, %s mm (expected %d, %s), parse %s ms" % (field(rep, "tris"), field(rep, "dims"), tris, " x ".join("%g" % v for v in size), field(rep, "parse")) if ok else rep[:120])
+        check("  its units: %s, %s" % (unit, "stated by the file" if source == "0" else "assumed"), ok and field(rep, "fileUnit") == unit and field(rep, "unitSource") == source,
+              "%s, source %s" % (field(rep, "fileUnit"), field(rep, "unitSource")))
+        check("  its format, colours, normals and up axis", ok and field(rep, "format") == fmt and field(rep, "colors") == str(colors)
+              and field(rep, "smooth") == str(normals) and field(rep, "yUp") == str(yup),
+              "format %s, colours %s, own normals %s, Y up %s" % (field(rep, "format"), field(rep, "colors"), field(rep, "smooth"), field(rep, "yUp")))
+        code, dt, rep = snapshot(exe, os.path.join(out, "format-%s-light-details.png" % stem), light, S(name), press="I")
+        check("  and it draws in the light theme with the details card", code == 0 and rep.startswith("ok"), rep[:60])
+
+    # ── files that cannot be shown: a plain message, never a crash ──
+    bad = os.path.join(out, "bad-formats")
+    shutil.rmtree(bad, ignore_errors=True)
+    os.makedirs(bad)
+
+    def write(name, data):
+        with open(os.path.join(bad, name), "wb") as fh_:
+            fh_.write(data if isinstance(data, bytes) else data.encode())
+        return os.path.join(bad, name)
+
+    whole = open(S("assembly.3mf"), "rb").read()
+    model = whole.find(b"3D/main.model") + len(b"3D/main.model")        # where the model's packed data starts
+    with zipfile.ZipFile(os.path.join(bad, "no-model.3mf"), "w") as z:
+        z.writestr("readme.txt", "nothing to see")
+    with zipfile.ZipFile(os.path.join(bad, "bad-xml.3mf"), "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("3D/3dmodel.model", "<html><body>not a model</body></html>")
+    box = open(S("box-binary.ply"), "rb").read()
+    gltf = json.load(open(S("two-blocks.gltf")))
+    lone = dict(gltf, buffers=[dict(gltf["buffers"][0], uri="gone.bin"), gltf["buffers"][1]])
+    away = dict(gltf, buffers=[dict(gltf["buffers"][0], uri="//server/share/two-blocks.bin"), gltf["buffers"][1]])
+    outside = dict(gltf, accessors=[dict(gltf["accessors"][0], count=5000)] + gltf["accessors"][1:])
+    glb = open(S("blocks.glb"), "rb").read()
+    broken = [
+        ("a 3MF that is not a zip", write("broken.3mf", "this is not a zip package\n"), "3MF"),
+        ("a 3MF cut short", write("truncated.3mf", whole[:len(whole) * 3 // 5]), "3MF"),
+        ("a 3MF whose packed data is damaged", write("damaged.3mf", whole[:model] + b"\xff" * 40 + whole[model + 40:]), "3MF"),
+        ("a 3MF package with no model in it", os.path.join(bad, "no-model.3mf"), "no 3D model"),
+        ("a 3MF whose model is some other XML", os.path.join(bad, "bad-xml.3mf"), "3MF"),
+        ("a PLY point cloud", write("cloud.ply", "ply\nformat ascii 1.0\nelement vertex 3\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n1 0 0\n0 1 0\n"), "point cloud"),
+        ("a binary PLY cut short", write("truncated.ply", box[:-40]), "stops before"),
+        ("a PLY that promises far more than it holds", write("greedy.ply", box.replace(b"element vertex 24", b"element vertex 2000000000")), "stops before"),
+        ("a PLY with no header end", write("broken.ply", "ply\nformat ascii 1.0\nelement vertex 3\nproperty float x\n"), "PLY"),
+        ("a PLY with letters where numbers belong", write("letters.ply", "ply\nformat ascii 1.0\nelement vertex 3\nproperty float x\nproperty float y\nproperty float z\nelement face 1\nproperty list uchar int vertex_indices\nend_header\n0 0 0\none two three\n"), "PLY"),
+        ("a GLB with nonsense inside", write("broken.glb", b"glTF" + struct.pack("<III", 2, 40, 20) + b"JSON{not json at all!!"), "glTF"),
+        ("a GLB cut short", write("truncated.glb", glb[:len(glb) // 2]), "glTF"),
+        ("a glTF 1.0 binary", write("old.glb", b"glTF" + struct.pack("<II", 1, 20) + bytes(8)), "glTF 1.0"),
+        ("a glTF whose text stops half way", write("broken.gltf", '{"asset": {"version": "2.0"}, "meshes": ['), "glTF"),
+        ("a glTF that needs Draco", write("draco.gltf", json.dumps(dict(gltf, extensionsRequired=["KHR_draco_mesh_compression"]))), "Draco"),
+        ("a glTF that needs meshopt", write("meshopt.gltf", json.dumps(dict(gltf, extensionsRequired=["EXT_meshopt_compression"]))), "meshopt"),
+        ("a glTF whose .bin is missing", write("missing-bin.gltf", json.dumps(lone)), "gone.bin is missing"),
+        ("a glTF pointing at a server for its data", write("elsewhere.gltf", json.dumps(away)), "doesn't fetch"),
+        ("a glTF pointing outside its own data", write("outside.gltf", json.dumps(outside)), "glTF"),
+        ("a glTF with no meshes", write("empty.gltf", '{"asset": {"version": "2.0"}, "scenes": [{"nodes": []}]}'), "no surfaces"),
+    ]
+    shutil.copy(S("two-blocks.bin"), os.path.join(bad, "two-blocks.bin"))         # so only the named fault is at work
+    for label, path, phrase in broken:
+        code, dt, rep = snapshot(exe, os.path.join(out, "format-error-%s.png" % os.path.basename(path).replace(".", "-")), dark, path)
+        check("%s shows an error" % label, code == 3 and rep.startswith("error") and phrase in rep, rep[:110])
+
+    # ── in a window: units, details, stepping through the folder ──
+    s = Session(exe, S("blocks.glb"), dark, out)
+    try:
+        a = s.shot("glb")
+        wd = [float(v) for v in a["worldDims"].split(",")]
+        check("a glTF model stands the right way up, in millimeters", a["yUp"] == "True" and a["format"] == "GLB"
+              and all(abs(d - e) < 0.01 for d, e in zip(wd, (120, 150, 160))), "%s mm as it stands, colours %s" % (a["worldDims"], a["fileColors"]))
+        check("its colours come from the file", a["fileColors"] == "True")
+        check("there is no Fix units button for a file that states its units", "5" not in dict(b.split(":") for b in a["buttons"].split(";") if b), a["buttons"])
+        s.post(0x8000 + 3)
+        b = s.shot("glb-units")
+        check("asking to change a glTF file's units says why not", "state their own units" in b["toast"] and b["fileUnit"] == "m", b["toast"])
+        s.key("I")
+        s.shot("glb-details")
+    finally:
+        s.close()
+
+    s = Session(exe, S("assembly.3mf"), dark, out)
+    try:
+        a = s.shot("3mf")
+        check("a 3MF has no Fix units button either", a["format"] == "3MF" and "5" not in dict(b.split(":") for b in a["buttons"].split(";") if b), a["buttons"])
+        check("its parts are found for measuring", int(a["chains"]) > 0 and a["watertight"] == "True", "%s edges, watertight=%s" % (a["chains"], a["watertight"]))
+        s.key(0x27)
+        nxt = s.shot("3mf-next")
+        check("Right arrow steps on to the next model, another new format", nxt["file"] == "block-inch.3mf" and int(nxt["tris"]) == 12 and not nxt["error"], nxt["file"])
+        s.key(0x25)
+        check("and Left arrow comes back", s.shot("3mf-back")["file"] == "assembly.3mf")
+    finally:
+        s.close()
+
+    s = Session(exe, S("box-ascii.ply"), dark, out)
+    try:
+        a = s.shot("ply")
+        check("a PLY has the Fix units button, like an STL", "5" in dict(b.split(":") for b in a["buttons"].split(";") if b) and a["fileUnit"] == "mm" and a["unitSource"] == "1", a["buttons"])
+        s.post(0x8000 + 3)
+        b = s.shot("ply-inches")
+        dims = [float(v) for v in b["dims"].split(",")]
+        check("and its unit can be changed", b["fileUnit"] == "in" and b["unitSource"] == "2" and abs(dims[0] - 762) < 0.01, "now %s, %s mm" % (b["fileUnit"], b["dims"]))
+        for _ in range(4):
+            s.post(0x8000 + 3); s.shot("ply-next-unit")
+        c = s.shot("ply-mm")
+        check("cycling comes back round to millimeters", c["fileUnit"] == "mm" and c["unitSource"] == "2" and c["dims"].startswith("30.000,20.000,10.000"), c["dims"])
+    finally:
+        code = s.close()
+    check("format sessions exit cleanly", code == 0)
+
+
 def main():
     exe, samples, out = (os.path.abspath(a) for a in sys.argv[1:4])
     os.makedirs(out, exist_ok=True)
@@ -1032,6 +1182,7 @@ def main():
     inspection_tests(exe, S, env, out)
     units_and_layflat_tests(exe, S, env, out)
     fraction_and_option_tests(exe, S, env, out)
+    mesh_format_tests(exe, S, env, out)
     update_indicator_tests(exe, S, env, out)
 
     failed = [r for r in results if not r[1]]

@@ -142,7 +142,7 @@ internal static unsafe partial class App
         _hoverDirty = _measure;
     }
 
-    /// <summary>STL / OBJ only: read the file's numbers as the next unit (mm, in, cm, m, ft) and remember it for this file.</summary>
+    /// <summary>STL, OBJ and PLY only: read the file's numbers as the next unit (mm, in, cm, m, ft) and remember it for this file.</summary>
     static void CycleFileUnit()
     {
         if (_mesh == null || _path == null) return;

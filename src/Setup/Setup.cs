@@ -220,9 +220,9 @@ internal static unsafe class Setup
         SetBkMode(dc, 1);
         if (_icon != 0) DrawIconEx(dc, D(32), D(28), _icon, D(44), D(44), 0, 0, 3);
         Label(dc, "Glance", _fTitle, Charcoal, 90, 20, 380, 44);
-        Label(dc, "A fast, simple viewer for STL, OBJ and STEP models", _fSmall, Slate, 92, 60, 380, 20);
+        Label(dc, "A fast, simple viewer for STL, STEP, 3MF and other 3D models", _fSmall, Slate, 92, 60, 380, 20);
 
-        Label(dc, "Double-click an STL, OBJ, STEP or IGES file and it opens in Glance.", _fSmall, Slate, 51, 138, 420, 20);
+        Label(dc, "Double-click an STL, OBJ, 3MF, PLY, glTF, STEP or IGES file to open it.", _fSmall, Slate, 51, 138, 420, 20);
         Label(dc, "Works whichever app is set to open the file.", _fSmall, Slate, 51, 202, 420, 20);
 
         (string text, uint color) = _state switch
@@ -388,7 +388,7 @@ internal static unsafe class Setup
             if (p.ExitCode != 0) throw new InvalidOperationException("Registering the file types failed.");
         }
 
-        try { Link(Shortcut, exe, "A fast, simple viewer for STL, OBJ and STEP models"); } catch { }    // a missing Start menu entry is not fatal
+        try { Link(Shortcut, exe, "A fast, simple viewer for STL, STEP, 3MF and other 3D models"); } catch { }    // a missing Start menu entry is not fatal
     }
 
     /// Writes a .lnk through IShellLinkW / IPersistFile (raw COM: no runtime marshalling under native AOT).

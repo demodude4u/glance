@@ -8,7 +8,8 @@ internal static class Registration
 {
     static readonly (string Ext, string Name)[] Types =
     [
-        (".stl", "STL Model"), (".obj", "OBJ Model"), (".step", "STEP Model"), (".stp", "STEP Model"),
+        (".stl", "STL Model"), (".obj", "OBJ Model"), (".3mf", "3MF Model"), (".ply", "PLY Model"),
+        (".glb", "glTF Model"), (".gltf", "glTF Model"), (".step", "STEP Model"), (".stp", "STEP Model"),
         (".iges", "IGES Model"), (".igs", "IGES Model"),
     ];
 
@@ -67,7 +68,7 @@ internal static class Registration
         using (var k = Registry.CurrentUser.CreateSubKey(@"Software\Glance\Capabilities"))
         {
             k.SetValue("ApplicationName", "Glance");
-            k.SetValue("ApplicationDescription", "A fast, simple viewer for STL, OBJ and STEP models.");
+            k.SetValue("ApplicationDescription", "A fast, simple viewer for STL, STEP, 3MF and other 3D models.");
             using var fa = k.CreateSubKey("FileAssociations");
             foreach (var (ext, _) in Types) fa.SetValue(ext, ProgId(ext));
         }
