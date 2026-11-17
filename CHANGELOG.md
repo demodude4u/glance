@@ -2,6 +2,10 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
+## 1.5.2 (2026-11-17)
+
+- No changes to how Glance works. Released to check the update path end to end on a real install.
+
 ## 1.5.1 (2026-11-17)
 
 - **Cleaner Studio and Metal shading.** The soft shadows in corners and holes are now smooth instead of speckled.
