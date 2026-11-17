@@ -2,7 +2,7 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
-## 1.5.0 (2026-11-16)
+## 1.5.0 (2026-11-17)
 
 - **Picture sizes by name.** The Picture card offers Window, HD (1280 × 720), Full HD (1920 × 1080), QHD
   (2560 × 1440), 4K (3840 × 2160) and Square (2048 × 2048) in place of 1×, 2× and 4×. While the card is open the
