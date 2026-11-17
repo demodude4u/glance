@@ -636,15 +636,15 @@ internal static unsafe partial class App
             Matrices(out var sm, out var sv, out var sp, out var se);
             Matrix4x4 svp = sv * sp;
             Vector4? sclip = ClipPlane();
-            Matrix4x4? floor = ground && se.Z > floorZ
-                ? Matrix4x4.CreateScale(floorExtent * 3, floorExtent * 3, 1) * Matrix4x4.CreateTranslation(_center.X, _center.Y, floorZ) * svp : null;
-            R.Prepass(sm * svp, sclip, _w, _h, floor);
+            R.Prepass(sm * svp, sclip, _w, _h);
             if (ground)
             {
                 var above = new Matrix4x4(1 / floorExtent, 0, 0, 0, 0, 1 / floorExtent, 0, 0, 0, 0, 0, 0, -_center.X / floorExtent, -_center.Y / floorExtent, 0, 1);
                 R.ShadowMap(sm * above, sclip);
             }
-            R.SetStudio(sp, _ortho, _radius * 0.20f, _theme.Dark, light, surface);
+            // Where the part stands on the ground it is darkened a little, over a short reach so that it reads as contact.
+            R.SetStudio(sp, _ortho, _radius * 0.20f, _theme.Dark, light, surface, ground && se.Z > floorZ ? _radius * 0.045f : 0);
+            R.Occlusion(sm * sv, sm * svp, sclip, _w, _h);
         }
         R.Begin(_w, _h, _shotAlpha);
         if (_shotAlpha) { }

@@ -2,6 +2,12 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
+## 1.5.1 (2026-11-17)
+
+- **Cleaner Studio and Metal shading.** The soft shadows in corners and holes are now smooth instead of speckled.
+  Where a part stands on the ground it is darkened only close to the ground, as a thin line of contact; a thin
+  flat part no longer has its whole edge darkened.
+
 ## 1.5.0 (2026-11-17)
 
 - **Picture sizes by name.** The Picture card offers Window, HD (1280 × 720), Full HD (1920 × 1080), QHD

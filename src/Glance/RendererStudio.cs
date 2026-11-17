@@ -10,21 +10,27 @@ namespace Glance;
 /// </summary>
 internal sealed unsafe partial class Renderer
 {
-    uint _render, _floor;
+    uint _render, _floor, _ao;
+    uint _aoFbo, _aoTex, _aoDepth; int _aoW, _aoH;
+    float _groundReach;
     uint _depthFbo, _depthTex; int _depthW, _depthH;
     uint _shadowFbo, _shadowTex;
     const int ShadowSize = 512;
     Matrix4x4 _studioProj; bool _studioOrtho; float _aoRadius; bool _studioDark;
 
-    const uint DEPTH_COMPONENT = 0x1902, TEXTURE1 = 0x84C1, TEXTURE2 = 0x84C2, LINEAR_MIPMAP_LINEAR = 0x2703,
+    const uint DEPTH_COMPONENT = 0x1902, TEXTURE1 = 0x84C1, TEXTURE2 = 0x84C2, TEXTURE3 = 0x84C3, LINEAR_MIPMAP_LINEAR = 0x2703,
         MAX_TEXTURE_SIZE = 0x0D33, MAX_RENDERBUFFER_SIZE = 0x84E8;
 
-    const string RenderFs = """
+    /// <summary>
+    /// The occlusion pass: for every pixel of the part, how open that spot is to its surroundings, judged from the
+    /// depth pre-pass. Sixteen samples per pixel, turned by a pattern that repeats every 4 pixels, so that the
+    /// picture shader's 4 x 4 average sees 256 samples and no grain.
+    /// </summary>
+    const string AoFs = """
         #version 330 core
-        uniform vec3 uBase; uniform float uFlat; uniform float uUseCol; uniform float uOrtho; uniform float uStyle;
-        uniform vec4 uCut; uniform sampler2D uDepth; uniform vec4 uProj; uniform vec2 uScreen; uniform float uAoR; uniform float uDark;
-        uniform vec3 uLight; uniform vec4 uLightMix; uniform float uSurface;
+        uniform float uFlat; uniform float uOrtho; uniform sampler2D uDepth; uniform vec4 uProj; uniform vec2 uScreen; uniform float uAoR;
         in vec3 vView; in vec3 vNrm; in vec4 vCol; out vec4 o;
+        const float Order[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 
         // View-space position of whatever the depth pre-pass saw at this screen position.
         vec3 seen(vec2 uv){
@@ -35,12 +41,16 @@ internal sealed unsafe partial class Renderer
           return vec3(q.x * -z / uProj.x, q.y * -z / uProj.y, z);
         }
 
-        // How open the surface is to its surroundings: 1 in the open, lower in corners, holes and against the ground.
-        float openness(vec3 P, vec3 N){
+        void main(){
+          vec3 P = vView;
+          vec3 N = uFlat > 0.5 ? normalize(cross(dFdx(vView), dFdy(vView))) : normalize(vNrm);
+          vec3 V = uOrtho > 0.5 ? vec3(0.0, 0.0, 1.0) : normalize(-vView);
+          if (dot(N, V) < 0.0) N = -N;
           vec2 uv = gl_FragCoord.xy * uScreen;
           float r = uOrtho > 0.5 ? uAoR * uProj.y * 0.5 : uAoR * uProj.y * 0.5 / max(-P.z, 1e-6);
           r = clamp(r, 3.0 * uScreen.y, 0.16);
-          float n = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+          ivec2 f = ivec2(gl_FragCoord.xy) & 3;
+          float n = Order[f.x + f.y * 4] / 16.0;
           float s = 0.0;
           for (int i = 0; i < 16; i++) {
             float t = (float(i) + 0.5) / 16.0, a = 6.2831853 * (n + float(i) * 0.618034);
@@ -50,7 +60,44 @@ internal sealed unsafe partial class Renderer
             s += max(0.0, dot(N, v) - 0.04) / (dot(v, v) + 0.05);
           }
           float open = clamp(1.0 - 1.9 * s / 16.0, 0.0, 1.0);
-          return open * open * (3.0 - 2.0 * open);
+          // With it, which way the surface faces, so the smoothing can stop at a crease.
+          o = vec4(open * open * (3.0 - 2.0 * open), N * 0.5 + 0.5);
+        }
+        """;
+
+    const string RenderFs = """
+        #version 330 core
+        uniform vec3 uBase; uniform float uFlat; uniform float uUseCol; uniform float uOrtho; uniform float uStyle;
+        uniform vec4 uCut; uniform sampler2D uDepth; uniform vec4 uProj; uniform vec2 uScreen; uniform float uAoR; uniform float uDark;
+        uniform vec3 uLight; uniform vec4 uLightMix; uniform float uSurface;
+        uniform sampler2D uAo; uniform vec4 uUp; uniform float uGround;
+        in vec3 vView; in vec3 vNrm; in vec4 vCol; out vec4 o;
+
+        // How open the surface is to its surroundings: 1 in the open, lower in corners and holes. The occlusion
+        // pass worked this out per pixel with a sampling pattern that repeats every 4 pixels; averaging a 4 x 4
+        // block cancels the pattern, and leaving out pixels at a different depth or facing another way keeps
+        // edges and creases crisp.
+        float openness(vec3 P, vec3 N){
+          ivec2 c = ivec2(gl_FragCoord.xy), top = textureSize(uAo, 0) - 1;
+          float sum = 0.0, wsum = 0.0;
+          for (int j = -2; j < 2; j++) for (int i = -2; i < 2; i++) {
+            ivec2 q = clamp(c + ivec2(i, j), ivec2(0), top);
+            float ndc = texelFetch(uDepth, q, 0).r * 2.0 - 1.0;
+            float z = uOrtho > 0.5 ? (ndc - uProj.w) / uProj.z : -uProj.w / (ndc + uProj.z);
+            vec4 t = texelFetch(uAo, q, 0);
+            float same = max(dot(normalize(t.gba * 2.0 - 1.0), N), 0.0);
+            float w = max(0.0, 1.0 - abs(z - P.z) / (0.15 * uAoR)) * same * same * same * same;
+            sum += t.r * w; wsum += w;
+          }
+          return wsum > 1e-3 ? sum / wsum : texelFetch(uAo, clamp(c, ivec2(0), top), 0).r;
+        }
+
+        // A little darker where the part meets the ground: strongest on faces that look down at it, half as
+        // much on upright walls, none on faces that look up, and gone within uGround of the ground.
+        float grounded(vec3 P, vec3 N){
+          if (uGround <= 0.0) return 1.0;
+          float near = clamp(1.0 - max(dot(P, uUp.xyz) - uUp.w, 0.0) / uGround, 0.0, 1.0);
+          return 1.0 - 0.75 * (0.5 - 0.5 * dot(N, uUp.xyz)) * near * near;
         }
 
         // A photo studio seen in reflection: dark floor, grey walls, a large soft light overhead and a strip to one side.
@@ -71,7 +118,7 @@ internal sealed unsafe partial class Renderer
           vec3 N = uFlat > 0.5 ? normalize(cross(dFdx(vView), dFdy(vView))) : normalize(vNrm);
           vec3 V = uOrtho > 0.5 ? vec3(0.0, 0.0, 1.0) : normalize(-vView);
           if (dot(N, V) < 0.0) N = -N;
-          float open = openness(vView, N);
+          float open = openness(vView, N) * grounded(vView, N);
           vec3 base = mix(uBase, vCol.rgb, vCol.a * uUseCol);
           if (uStyle < 4.5) {
             // Studio: matte clay under a soft sky with one broad light, no highlights.
@@ -151,9 +198,11 @@ internal sealed unsafe partial class Renderer
 
     /// <param name="light">Studio's light: 0 soft, 1 from the left, 2 from the right, 3 from above.</param>
     /// <param name="surface">Metal's finish: 0 polished, 1 satin, 2 matte.</param>
-    public void SetStudio(Matrix4x4 proj, bool ortho, float aoRadius, bool dark, int light = 0, int surface = 1)
+    /// <param name="groundReach">How far above the ground the part is darkened where it meets it; 0 for not at all.</param>
+    public void SetStudio(Matrix4x4 proj, bool ortho, float aoRadius, bool dark, int light = 0, int surface = 1, float groundReach = 0)
     {
         _studioProj = proj; _studioOrtho = ortho; _aoRadius = aoRadius; _studioDark = dark; _studioLight = light; _metalSurface = surface;
+        _groundReach = groundReach;
     }
 
     void StudioUniforms(uint p)
@@ -178,11 +227,59 @@ internal sealed unsafe partial class Renderer
         Uniform1f(Loc(p, "uDark"), _studioDark ? 1 : 0);
         ActiveTexture(TEXTURE1); glBindTexture(TEXTURE_2D, _depthTex);
         Uniform1i(Loc(p, "uDepth"), 1);
+        ActiveTexture(TEXTURE3); glBindTexture(TEXTURE_2D, _aoTex);
+        Uniform1i(Loc(p, "uAo"), 3);
         ActiveTexture(TEXTURE0);
+        Uniform1f(Loc(p, "uGround"), _groundReach);
+    }
+
+    /// <summary>
+    /// How open each visible spot of the part is, into a texture the size of the picture. Call after Prepass and
+    /// SetStudio; the picture shader smooths it and uses it for the soft shadows in corners and holes.
+    /// </summary>
+    public void Occlusion(Matrix4x4 mv, Matrix4x4 mvp, Vector4? clip, int w, int h)
+    {
+        if (_meshVerts == 0) return;
+        if (_ao == 0) _ao = Program(MeshVs, AoFs, "aPos", "aNrm", "aCol");
+        if (_aoFbo == 0 || w != _aoW || h != _aoH)
+        {
+            if (_aoFbo == 0)
+            {
+                uint f; GenFramebuffers(1, &f); _aoFbo = f; uint t; glGenTextures(1, &t); _aoTex = t; uint rb; GenRenderbuffers(1, &rb); _aoDepth = rb;
+            }
+            glBindTexture(TEXTURE_2D, _aoTex);
+            glTexImage2D(TEXTURE_2D, 0, (int)RGBA8, w, h, 0, BGRA, UNSIGNED_BYTE, null);
+            glTexParameteri(TEXTURE_2D, TEXTURE_MIN_FILTER, (int)NEAREST); glTexParameteri(TEXTURE_2D, TEXTURE_MAG_FILTER, (int)NEAREST);
+            glTexParameteri(TEXTURE_2D, TEXTURE_WRAP_S, (int)CLAMP_TO_EDGE); glTexParameteri(TEXTURE_2D, TEXTURE_WRAP_T, (int)CLAMP_TO_EDGE);
+            BindRenderbuffer(RENDERBUFFER, _aoDepth); RenderbufferStorageMultisample(RENDERBUFFER, 0, DEPTH_COMPONENT24, w, h);
+            BindFramebuffer(FRAMEBUFFER, _aoFbo);
+            FramebufferTexture2D(FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, _aoTex, 0);
+            FramebufferRenderbuffer(FRAMEBUFFER, DEPTH_ATTACHMENT, RENDERBUFFER, _aoDepth);
+            _aoW = w; _aoH = h;
+        }
+        BindFramebuffer(FRAMEBUFFER, _aoFbo);
+        glViewport(0, 0, w, h);
+        glDepthMask(1); glClearColor(1, 1, 1, 1); glClear(COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
+        glEnable(DEPTH_TEST); glDepthFunc(LEQUAL); glDisable(BLEND);
+        UseProgram(_ao);
+        Mat(_ao, "uMV", mv); Mat(_ao, "uMVP", mvp); Clip(_ao, clip);
+        Uniform1f(Loc(_ao, "uFlat"), _hasNrm ? 0 : 1);
+        Uniform1f(Loc(_ao, "uOrtho"), _studioOrtho ? 1 : 0);
+        Matrix4x4 m = _studioProj;
+        Uniform4f(Loc(_ao, "uProj"), m.M11, m.M22, m.M33, m.M43);
+        Uniform2f(Loc(_ao, "uScreen"), 1f / w, 1f / h);
+        Uniform1f(Loc(_ao, "uAoR"), _aoRadius);
+        ActiveTexture(TEXTURE1); glBindTexture(TEXTURE_2D, _depthTex);
+        Uniform1i(Loc(_ao, "uDepth"), 1);
+        ActiveTexture(TEXTURE0);
+        if (clip.HasValue) glEnable(CLIP_DISTANCE0);
+        BindVertexArray(_meshVao);
+        DrawGeometry();
+        glDisable(CLIP_DISTANCE0);
     }
 
     /// <summary>Depth only, at the size of the picture: what the soft corner shadows look around in.</summary>
-    public void Prepass(Matrix4x4 mvp, Vector4? clip, int w, int h, Matrix4x4? floor)
+    public void Prepass(Matrix4x4 mvp, Vector4? clip, int w, int h)
     {
         if (_meshVerts == 0) return;
         if (_depthFbo == 0 || w != _depthW || h != _depthH)
@@ -207,12 +304,6 @@ internal sealed unsafe partial class Renderer
         BindVertexArray(_meshVao);
         DrawGeometry();
         glDisable(CLIP_DISTANCE0);
-        if (floor.HasValue)          // the ground counts as a surface too, so the part darkens where it meets it
-        {
-            Mat(_line, "uMVP", floor.Value); Clip(_line, null);
-            BindVertexArray(_quadVao);
-            glDrawArrays(TRIANGLES, 0, 6);
-        }
     }
 
     /// <summary>The part's outline seen from straight above, blurred later into the shadow on the ground.</summary>
