@@ -11,7 +11,9 @@ and it is on screen before you have let go of the mouse.
 - **Built for parts.** Click a hole to read its diameter, two faces for the distance or angle between them,
   an edge for its length. Section cut, bounding-box dimensions, mm / inch / inch fractions, area, volume and a
   watertight check.
-- **Simple.** One window, four buttons. Press **F1** for the handful of keys.
+- **Two revisions, side by side in time.** Bring in the earlier or later export of a part and flip between
+  the two with nothing else moving, or overlay them and see what changed in colour.
+- **Simple.** One window, a few buttons. Press **F1** for the handful of keys.
 
 ## Using it
 
@@ -36,9 +38,11 @@ and it is on screen before you have let go of the mouse.
 | U | Show millimeters, inches, or inches as fractions (also the toolbar button) |
 | Shift+U | STL, OBJ and PLY, and a glTF that looks too large: Fix units, choose what unit the file's numbers are in |
 | I | Details: size, triangles, surface area, volume, watertight |
-| ← → | Previous / next model in the folder |
+| ← → | Previous / next model in the folder (each one is framed afresh) |
+| D | Compare with another file (also the **Compare** button, or drop a file with Ctrl held). While comparing, D switches the overlay on and off (see below) |
+| Space | While comparing: flip between the two revisions |
 | R | Turntable |
-| O, drag-and-drop | Open a file |
+| O, drag-and-drop | Open a file. Opened without one, Glance lists the models opened lately: click one to reopen it |
 | Ctrl+C | Copy a picture of the model |
 | Esc | Close |
 
@@ -62,6 +66,58 @@ Click a third feature to start again, **Esc** to clear. Dragging still orbits wh
 STEP faces are the exact CAD faces;
 on STL files faces are found from creases, so a hole needs to be reasonably round (12 or more sides) to be
 recognised as a circle.
+
+### Comparing two revisions
+
+Open one revision, then bring in the other: press **D** (or the **Compare** button) and pick the file, or drop it
+on the window with **Ctrl** held. The two may be different formats and different units; both are read the usual
+way, so an STL in inches and a STEP in millimeters compare at their true sizes.
+
+**Space** flips between them. Nothing else moves: the camera, the shading and the section cut stay exactly where
+they are, so the only thing that changes on screen is the part. A card at the top right says which revision is
+showing (click a row to show that one) and gives the numbers for both with the change from the first to the
+second: width, depth and height, volume, and triangle count. Everything else works on whichever revision is on
+screen: measure a hole, flip, measure it again. In a window too short for the card, or so narrow that the card
+would sit over the part, it becomes a bar with just **1**, **2** and **Both**.
+
+**D** (or the **Both, overlaid** row) draws the two together, in place. Surface that only the first revision has
+is blue, surface that only the second has is amber, and where the two agree the part is neutral grey. So a boss
+that was added shows amber; a hole that was enlarged shows a blue ring where the first still had material, around
+the new wall in amber. A section cut (**X**) works on the overlay and shows changes inside the part.
+
+How the overlay decides, and where it can mislead:
+
+- It compares surfaces, not triangles. From where you are looking, each pixel asks how far apart the two parts'
+  nearest surfaces are along the line of sight. Two exports of the same face never share triangles, and they do
+  not need to: within the tolerance they count as the same. The tolerance is the **Same within** option under the
+  toolbar, about a thousandth of the part's size in round numbers (0.1 mm for a 100 mm part), with a finer and a
+  coarser step.
+- Only what is visible is compared. A change hidden behind or inside the part does not show until you turn the
+  model or cut it with a section.
+- A change smaller than the tolerance is drawn as the same. A coarsely tessellated curve that strays from the
+  true surface by more than the tolerance shows as a faint speckle of colour: step the tolerance up.
+- Where one part's surface stands in front of the other's, only the front one is seen, in its colour. The colour
+  says "this surface is in one revision only", not how much material was added or removed behind it.
+- Nothing is moved to make the two fit. If they were exported from different positions (their boxes share less
+  than half of the smaller one) the card says so, with the distance between their centres, and there is no
+  overlay; flipping still works. Lining parts up by their centres or corners would invent differences on any part
+  that grew on one side, so Glance does not try. If one is about 25.4, 10 or 1000 times the size of the other,
+  the card suggests a units mix-up: fix that file's units and compare again.
+
+**Esc**, the card's close button or the **Compare** button ends the compare: the first revision is on screen on
+its own again and the second is released from memory. Opening another file ends it too. **F5** reloads the
+revision on screen (after a new export, say) and carries on comparing.
+
+### Recent files
+
+Opened without a file, Glance lists the last five models you opened under its greeting; one click reopens one.
+A file that has been moved or deleted is left out. With a model open the list is not on screen. Files stepped to
+with the arrow keys are not added, so browsing a folder does not push out the models you chose yourself. The list
+is `recent.txt` in the settings folder (`%LOCALAPPDATA%\Glance`), twelve entries at most.
+
+Glance also tells Windows about each model it opens, so they appear under **Recent** when you right-click Glance
+on the taskbar or in the Start menu. Windows shows that list only while "Show recently opened items in Start, Jump
+Lists and File Explorer" is on (Settings, Personalization, Start).
 
 ### Pictures
 
@@ -91,6 +147,7 @@ remembered for that mode.
 | X-ray | **Opacity**: Light, Medium, Heavy. **Edges**: on or off |
 | Wire | **Lines**: All triangles on the solid, or Feature edges only with nothing filled in |
 | Overhangs | **Angle**: 30°, 45° or 60° past vertical before a face is marked |
+| Overlay (while comparing) | **Same within**: how far apart two surfaces may be and still count as the same, in three steps |
 
 Until a backdrop or paper is chosen it follows the light / dark theme, as before. On one that does not suit the
 theme (a dark backdrop in the light theme, say) the buttons turn solid so they stay readable.
@@ -221,7 +278,7 @@ Not shipped: a software OpenGL fallback. Glance needs a graphics driver with Ope
 | `src\StepNative` | `glance-step.exe`: C++ on OpenCascade. Reads STEP/IGES, tessellates in parallel, writes a packed mesh. Runs as a separate process so a bad CAD file can never take the viewer down. |
 | `tools\build_step.py` | Builds the reader and ships only the 25 OpenCascade DLLs it needs. The codec, font and VR libraries the official build imports but the reader never calls are replaced with tiny stand-in DLLs. |
 | `tools\hidden_test.py` | End-to-end test on a hidden desktop: opens every format, then drives one window with real mouse and keyboard messages and checks the result. |
-| `tools\make_samples.py` | Writes the small sample models the tests open: STL, OBJ, 3MF, PLY and glTF files of known size. |
+| `tools\make_samples.py` | Writes the small sample models the tests open: STL, OBJ, 3MF, PLY and glTF files of known size, and pairs of revisions for the compare tests. |
 
 Settings and the STEP cache live in `%LOCALAPPDATA%\Glance` (cache capped at 1 GB, oldest first).
 Colours and type: Cobalt, Golden Amber, Slate, Charcoal and Ivory, set in Roboto.

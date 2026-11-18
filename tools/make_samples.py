@@ -19,7 +19,8 @@ def norm(a):
     return (a[0] / l, a[1] / l, a[2] / l)
 
 
-def knot(nu=420, nv=28, p=2, q=3, R=30.0, r=12.0, tube=5.0):
+def knot(nu=420, nv=28, p=2, q=3, R=30.0, r=12.0, tube=5.0, swell=0.0):
+    """swell: the tube is this much thicker over one tenth of its length (a changed revision, for the compare tests)."""
     def c(t):
         return ((R + r * math.cos(q * t)) * math.cos(p * t), (R + r * math.cos(q * t)) * math.sin(p * t), r * math.sin(q * t))
     rings = []
@@ -30,9 +31,11 @@ def knot(nu=420, nv=28, p=2, q=3, R=30.0, r=12.0, tube=5.0):
         n = norm(cross(tan, (0, 0, 1)))
         b = cross(tan, n)
         ring = []
+        u = i / nu
+        thick = tube + (swell * math.sin(math.pi * (u - 0.30) / 0.10) ** 2 if swell and 0.30 < u < 0.40 else 0.0)
         for j in range(nv):
             a = 2 * math.pi * j / nv
-            ring.append(tuple(o[k] + tube * (math.cos(a) * n[k] + math.sin(a) * b[k]) for k in range(3)))
+            ring.append(tuple(o[k] + thick * (math.cos(a) * n[k] + math.sin(a) * b[k]) for k in range(3)))
         rings.append(ring)
     tris = []
     for i in range(nu):
@@ -389,4 +392,66 @@ write_ply_binary(os.path.join(out, "box-big-endian.ply"), big=True)
 write_ply_strips(os.path.join(out, "plate-strips.ply"))
 write_glb(os.path.join(out, "blocks.glb"))
 write_gltf(os.path.join(out, "two-blocks.gltf"))
+
+
+# ───────────────────────── Pairs for the compare tests ─────────────────────────
+# plate-holes.stl is the first revision. Every difference below is checked by tools/hidden_test.py.
+
+def plate_revision(depth=56.0, holes=((20.0, 25.0, 6.0), (60.0, 25.0, 5.0)), n=96, length=80.0, h=10.0):
+    """The 80 x 50 x 10 plate, revised: 6 mm deeper (it grows towards +Y only), the first hole untouched, the second
+    one 10 mm across instead of 8. Its circles have half as many segments again, so not one triangle of the
+    unchanged parts matches the first revision's. Volume 42,885 mm3 against 38,369 (as tessellated)."""
+    tris, mid = [], length / 2
+    for (cx, cy, r), x0, x1 in zip(holes, (0.0, mid), (mid, length)):
+        corners = [math.atan2(y - cy, x - cx) % (2 * math.pi) for x in (x0, x1) for y in (0.0, depth)]
+        angles = sorted(set([2 * math.pi * i / n for i in range(n)] + corners))
+        ring, rim = [], []
+        for a in angles:
+            c, s_ = math.cos(a), math.sin(a)
+            reach = [(x1 - cx) / c if c > 1e-12 else (x0 - cx) / c if c < -1e-12 else 1e30,
+                     (depth - cy) / s_ if s_ > 1e-12 else (0.0 - cy) / s_ if s_ < -1e-12 else 1e30]
+            k = min(reach)
+            ring.append((cx + r * c, cy + r * s_))
+            rim.append((min(max(cx + k * c, x0), x1), min(max(cy + k * s_, 0.0), depth)))
+        m = len(angles)
+        for i in range(m):
+            j = (i + 1) % m
+            a0, a1, b0, b1 = ring[i], ring[j], rim[i], rim[j]
+            for z, up in ((h, True), (0.0, False)):
+                q = [(a0[0], a0[1], z), (b0[0], b0[1], z), (b1[0], b1[1], z), (a1[0], a1[1], z)]
+                if not up: q.reverse()
+                tris.append((q[0], q[1], q[2])); tris.append((q[0], q[2], q[3]))
+            q = [(a0[0], a0[1], 0.0), (a0[0], a0[1], h), (a1[0], a1[1], h), (a1[0], a1[1], 0.0)]
+            tris.append((q[0], q[1], q[2])); tris.append((q[0], q[2], q[3]))
+            if abs(b0[0] - mid) < 1e-9 and abs(b1[0] - mid) < 1e-9:
+                continue
+            q = [(b0[0], b0[1], 0.0), (b1[0], b1[1], 0.0), (b1[0], b1[1], h), (b0[0], b0[1], h)]
+            tris.append((q[0], q[1], q[2])); tris.append((q[0], q[2], q[3]))
+    return tris
+
+
+def write_glb_soup(path, tris):
+    """Triangles in millimeters, Z up, written as glTF asks: meters, Y up, no indices and no normals."""
+    data = b"".join(struct.pack("<3f", p[0] / 1000, p[2] / 1000, -p[1] / 1000) for t in tris for p in t)
+    doc = {"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0]}], "nodes": [{"mesh": 0}],
+           "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+           "buffers": [{"byteLength": len(data)}], "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": len(data)}],
+           "accessors": [{"bufferView": 0, "componentType": 5126, "count": len(tris) * 3, "type": "VEC3"}]}
+    text = json.dumps(doc).encode()
+    text += b" " * (-len(text) % 4)
+    with open(path, "wb") as f:
+        f.write(struct.pack("<4sII", b"glTF", 2, 12 + 8 + len(text) + 8 + len(data)))
+        f.write(struct.pack("<I4s", len(text), b"JSON")); f.write(text)
+        f.write(struct.pack("<I4s", len(data), b"BIN\0")); f.write(data)
+
+
+revised = plate_revision()
+write_binary_stl(os.path.join(out, "plate-rev-b.stl"), revised)
+write_glb_soup(os.path.join(out, "plate-rev-b.glb"), revised)               # the same revision from another exporter
+# The first revision again, exported 300 mm away from where it was: not in the same place, so no overlay.
+write_binary_stl(os.path.join(out, "plate-moved.stl"), [tuple((p[0] + 300.0, p[1], p[2]) for p in t) for t in plate_with_holes()])
+# The first revision in millimeters under a header that says inches: 25.4 times too large.
+write_binary_stl(os.path.join(out, "plate-wrong-units.stl"), plate_with_holes(), b"alibre stl binary : Units=Inch")
+# A second million-triangle knot: a swelling over a tenth of its length, and a different triangle layout everywhere.
+write_binary_stl(os.path.join(out, "knot-large-b.stl"), knot(nu=4000, nv=126, swell=0.8))
 print("ok")

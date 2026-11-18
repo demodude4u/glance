@@ -8,9 +8,10 @@ a separate helper package), with settings and cache redirected to a scratch fold
 Part 1 opens each sample format and records how long the first picture took.
 Part 2 keeps one window open and drives it with real window messages (mouse drags, wheel, double-click, keys),
 asking the app for a picture and its state after each step and checking the state changed the way it should.
-Later parts cover measuring, units, pictures, mode options and the update indicator; the last opens the 3MF, PLY
+Later parts cover measuring, units, pictures, mode options and the update indicator; one opens the 3MF, PLY
 and glTF samples from tools/make_samples.py and checks their triangle counts, sizes and units, then a broken file
-of each kind.
+of each kind. Part 8 compares two revisions (flip with the view locked, overlay, leaving) and Part 9 checks the
+recent files list in the empty window.
 """
 import ctypes
 import os
@@ -80,7 +81,7 @@ class Session:
         self.out = out_dir
         self.desk = HiddenDesktop("glance_drive")
         self.env = dict(env, GLANCE_TEST_DIR=out_dir)
-        self.pid, self.hproc = self.desk.spawn([exe, model], env=self.env)
+        self.pid, self.hproc = self.desk.spawn([exe] + ([model] if model else []), env=self.env)      # no model: the empty window
         self.hwnd = None
         self.n = 0
         deadline = time.time() + 20
@@ -1101,6 +1102,419 @@ def mesh_format_tests(exe, S, env, out):
     check("format sessions exit cleanly", code == 0)
 
 
+WM_APP_DROP = 0x8000 + 20        # test hook: 1 = a file dropped with Ctrl held (compare with it), 2 = a file dropped (open it)
+
+
+def drop(s, path, ctrl=False):
+    """What dropping a file on the window does. The path travels in hook.txt beside the shots."""
+    with open(os.path.join(s.out, "hook.txt"), "w", encoding="utf-8") as fh_:
+        fh_.write(path)
+    s.post(WM_APP_DROP, 1 if ctrl else 2, 0)
+    time.sleep(0.15)
+
+
+def spots_of(state, key="buttons"):
+    return {b.split(":")[0]: tuple(float(v) for v in b.split(":")[1].split(",")) for b in state[key].split(";") if b}
+
+
+def press_at(s, spot):
+    s.post_many([(WM_LBUTTONDOWN, 1, s.xy(*spot)), (WM_LBUTTONUP, 0, s.xy(*spot))], gap=0.03)
+
+
+def themed_env(env, out, name, ini):
+    data = os.path.join(out, "data-" + name)
+    shutil.rmtree(data, ignore_errors=True)
+    os.makedirs(data)
+    with open(os.path.join(data, "settings.ini"), "w") as fh_:
+        fh_.write(ini)
+    return dict(env, GLANCE_DATA_DIR=data), data
+
+
+def tinted(im, box=None):
+    """How much of a picture (or of one box in it) is the overlay's amber, its blue, and neither: three shares of 1."""
+    from PIL import ImageChops
+    if box is not None:
+        im = im.crop(tuple(int(v) for v in box))
+    r, g, b = im.convert("RGB").split()
+
+    def share(rr, gg, bb):
+        m = ImageChops.multiply(ImageChops.multiply(r.point(lambda v: 255 if rr[0] <= v <= rr[1] else 0), g.point(lambda v: 255 if gg[0] <= v <= gg[1] else 0)),
+                                b.point(lambda v: 255 if bb[0] <= v <= bb[1] else 0))
+        return m.histogram()[255] / float(im.size[0] * im.size[1])
+    amber, blue = share((140, 255), (90, 235), (0, 80)), share((0, 90), (30, 170), (120, 255))
+    return amber, blue, 1 - amber - blue
+
+
+def compare_tests(exe, S, env, out):
+    """Two revisions of a part: flipping between them with the view locked, the overlay, and leaving."""
+    print("== Part 8: comparing two revisions ==")
+    rows_of = lambda st: {r.split("|")[0]: r.split("|")[1:] for r in st["cmpRows"].split(";") if r}
+    view = lambda st: (st["yaw"], st["pitch"], st["dist"], st["target"], st["ortho"], st["radius"])
+
+    # ── flip: same camera, same shading, same section cut ──
+    dark, _ = themed_env(env, out, "compare-dark", "theme=dark\nseenHint=1\n")
+    s = Session(exe, S("plate-holes.stl"), dark, out)
+    try:
+        a = s.shot("compare-before")
+        w, h = (int(v) for v in a["size"].split("x"))
+        check("the toolbar has a Compare button, and nothing is being compared", "40" in spots_of(a) and a["cmp"] == "False", a["buttons"])
+        s.drag(w // 2, h // 2, w // 2 + 140, h // 2 + 50)
+        s.post(WM_MOUSEWHEEL, (240 << 16), s.xy(0, 0))
+        s.key("X"); s.key("X")
+        b = s.shot("compare-view-set")
+        check("a view is set up: turned, zoomed, cut along Y", b["section"] == "2" and b["sectionAt"] == "25.0000" and b["yaw"] != a["yaw"], "section at %s" % b["sectionAt"])
+
+        drop(s, S("plate-rev-b.stl"), ctrl=True)
+        c = s.shot("compare-second")
+        check("a file dropped with Ctrl held is compared, not opened: the second revision is on screen", c["cmp"] == "True" and c["cmpShown"] == "2"
+              and c["file"] == "plate-rev-b.stl" and c["cmpFirst"] == "plate-holes.stl" and c["cmpSecond"] == "plate-rev-b.stl", "%s vs %s" % (c["cmpFirst"], c["cmpSecond"]))
+        check("the window title names the model on screen", "plate-rev-b.stl" in (s.title_now() or ""), s.title_now() or "")
+        check("bringing in the second file does not move the view", view(c)[:5] == view(b)[:5], "yaw %s dist %s target %s" % (c["yaw"], c["dist"], c["target"]))
+        check("the section cut stays where it was, though the second revision is deeper", c["section"] == "2" and c["sectionAt"] == b["sectionAt"], "at %s" % c["sectionAt"])
+        r = rows_of(c)
+        check("the card gives the size of both and what changed", r["Width X"] == ["80.00", "80.00", "="] and r["Depth Y"] == ["50.00", "56.00", "+6.00"]
+              and r["Height Z"] == ["10.00", "10.00", "="], c["cmpRows"])
+        check("and volume and triangle count", r["Volume, mm³"] == ["38,369", "42,885", "+11.8 %"] and r["Triangles"] == ["1,008", "1,480", "+472"], c["cmpRows"])
+        check("the size read-out is the second revision's", c["sizeText"] == "80.00 × 56.00 × 10.00 mm", c["sizeText"])
+
+        s.key(0x20)
+        d = s.shot("compare-first")
+        check("Space flips to the first revision", d["cmpShown"] == "1" and d["file"] == "plate-holes.stl" and d["sizeText"] == "80.00 × 50.00 × 10.00 mm", d["file"])
+        check("with the camera exactly where it was", view(d) == view(c), "yaw %s pitch %s dist %s target %s" % (d["yaw"], d["pitch"], d["dist"], d["target"]))
+        check("the same shading and the same cut", d["shading"] == c["shading"] and d["section"] == "2" and d["sectionAt"] == c["sectionAt"], "%s, cut at %s" % (d["shading"], d["sectionAt"]))
+        from PIL import ImageChops
+        check("and a different picture", ImageChops.difference(Image.open(c["png"]), Image.open(d["png"])).getbbox() is not None)
+        s.key(0x20)
+        e = s.shot("compare-second-again")
+        check("Space flips back", e["cmpShown"] == "2" and view(e) == view(c))
+
+        card = [float(v) for v in e["cmpCard"].split(",")]
+        ctl = spots_of(e)
+        check("the card has a row for each revision, one for both, and a close button", all(n in ctl for n in ("41", "42", "43", "44")) and e["cmpCompact"] == "False", e["buttons"])
+        check("the card is inside the window", card[0] >= 0 and card[1] >= 0 and card[0] + card[2] <= w and card[1] + card[3] <= h, e["cmpCard"])
+        press_at(s, ctl["41"])
+        f1 = s.shot("compare-click-first")
+        press_at(s, ctl["42"])
+        f2 = s.shot("compare-click-second")
+        check("clicking a revision's row shows it", f1["cmpShown"] == "1" and f2["cmpShown"] == "2", "%s then %s" % (f1["cmpShown"], f2["cmpShown"]))
+        press_at(s, (card[0] + card[2] / 2, card[1] + 6))
+        f3 = s.shot("compare-click-card")
+        check("a click on the card itself changes nothing", f3["cmpShown"] == "2" and view(f3) == view(c))
+
+        # measuring works on whichever revision is on screen
+        s.key("X"); s.key("X")
+        if f3["ortho"] != "True":
+            s.key("P")
+        s.key("5"); s.key("M")
+        g = s.shot("compare-measure-second")
+        click(s, g, 55, 25, 10)
+        g2 = s.shot("compare-hole-second")
+        s.key(0x20)
+        g3 = s.shot("compare-measure-first")
+        click(s, g3, 56, 25, 10)
+        g4 = s.shot("compare-hole-first")
+        check("the second revision's hole measures 10 mm and the first's 8 mm", g2["result"] == "Ø 10.00 mm" and g4["result"] == "Ø 8.00 mm", "%s, %s" % (g2["result"], g4["result"]))
+        check("flipping keeps the top view too", view(g3)[:4] == view(g)[:4], "%s / %s" % (g3["dist"], g["dist"]))
+
+        s.key(0x1B); s.key(0x1B)            # the selection, then measuring
+        s.key("X"); s.key("X")
+        before = s.shot("compare-before-leaving")
+        check("a new cut along Y starts in the middle of both revisions together", before["section"] == "2" and before["sectionAt"] == "28.0000", before["sectionAt"])
+        s.key(0x20)                         # leave from the second revision
+        s.key(0x1B)
+        z = s.shot("compare-left")
+        check("Esc leaves the compare and the first revision is back on its own", z["cmp"] == "False" and z["file"] == "plate-holes.stl" and "42" not in spots_of(z), z["file"])
+        check("the view and the cut are still where they were", view(z)[:5] == view(before)[:5] and z["section"] == "2" and z["sectionAt"] == before["sectionAt"],
+              "cut at %s, was %s" % (z["sectionAt"], before["sectionAt"]))
+        check("the second model's memory is let go", z["cmpHeld"] == "False" and z["cmpSpare"] == "False", "held=%s on the graphics card=%s" % (z["cmpHeld"], z["cmpSpare"]))
+        check("and its bounds no longer count", z["radius"] != before["radius"], "%s -> %s" % (before["radius"], z["radius"]))
+        s.key(0x1B)
+        check("the next Esc closes the section, not Glance", s.shot("compare-left-section")["section"] == "0")
+    finally:
+        code = s.close()
+    check("the compare session exits cleanly", code == 0)
+
+    # ── overlay: another format, other units, another up axis; both themes ──
+    light, _ = themed_env(env, out, "compare-light", "theme=light\nseenHint=1\n")
+    for theme, e_ in (("dark", dark), ("light", light)):
+        s = Session(exe, S("plate-holes.stl"), e_, out)
+        try:
+            a = s.shot("overlay-%s-start" % theme)
+            if a["ortho"] != "True":
+                s.key("P")
+            drop(s, S("plate-rev-b.glb"), ctrl=True)
+            b = s.shot("overlay-%s-second" % theme)
+            r = rows_of(b)
+            if theme == "dark":
+                check("a glTF in meters, Y up, compares with an STL in millimeters, Z up", b["cmp"] == "True" and b["format"] == "GLB" and b["fileUnit"] == "m" and b["yUp"] == "True"
+                      and r.get("Depth") == ["50.00", "56.00", "+6.00"] and r.get("Height") == ["10.00", "10.00", "="], b["cmpRows"])
+                check("the two are in the same place", b["cmpAligned"] == "True" and b["cmpOwnDims"] == "80.000,56.000,10.000", "%s mm apart, %s" % (b["cmpApart"], b["cmpOwnDims"]))
+                s.key(0x20)
+                c = s.shot("overlay-dark-first")
+                check("and both stand the same way up through a flip", c["yUp"] == "False" and c["cmpOwnDims"] == "80.000,50.000,10.000" and view(c) == view(b), c["cmpOwnDims"])
+            s.key("D")
+            o = s.shot("overlay-%s" % theme)
+            check("D overlays the two (%s)" % theme, o["cmpOverlay"] == "True" and o["shading"] == "Overlay" and o["options"] == "Same within:0.10 mm", "%s, %s" % (o["shading"], o["options"]))
+            ppu = f(o, "ppu")
+            im = Image.open(o["png"])
+
+            def around(x, y, z, mm):
+                px, py = screen(o, x, y, z)
+                return (px - mm * ppu, py - mm * ppu, px + mm * ppu, py + mm * ppu)
+            same, changed, grown = tinted(im, around(20, 25, 10, 7)), tinted(im, around(60, 25, 10, 5.5)), tinted(im, around(30, 53, 10, 1.5))
+            check("the unchanged hole, cut into different triangles in each file, has no colour (%s)" % theme, same[0] + same[1] < 0.003, "amber %.4f blue %.4f" % same[:2])
+            check("the hole that was made larger shows in the first revision's blue (%s)" % theme, changed[1] > 0.10, "blue %.3f amber %.3f" % (changed[1], changed[0]))
+            check("the 6 mm the plate grew by shows in the second revision's amber (%s)" % theme, grown[0] > 0.9, "amber %.3f" % grown[0])
+            if theme == "light":
+                continue
+            opt = [tuple(float(v) for v in r_.split(",")) for r_ in o["optionRects"].split(";") if r_]
+            names = []
+            for _ in range(3):
+                press_at(s, (opt[0][0] + opt[0][2] / 2, opt[0][1] + opt[0][3] / 2))
+                names.append(s.shot("overlay-tolerance-%d" % len(names))["options"])
+            check("the overlay's option sets how close counts as the same", names == ["Same within:0.50 mm", "Same within:0.02 mm", "Same within:0.10 mm"], " > ".join(names))
+
+            export = os.path.join(out, "export.png")
+            if os.path.exists(export): os.remove(export)
+            s.post(0x8000 + 5)
+            s.shot("overlay-saved")
+            pic = Image.open(export) if os.path.exists(export) else None
+            shares = tinted(pic) if pic else (0, 0, 0)
+            check("a picture saved from the overlay shows the overlay", pic is not None and shares[0] > 0.002 and shares[1] > 0.0005, "amber %.4f blue %.4f" % shares[:2])
+
+            s.key("X")
+            x1 = s.shot("overlay-section")
+            check("the section cut works on the overlay", x1["cmpOverlay"] == "True" and x1["section"] == "1" and x1["sectionAt"] == "40.0000", "cut at %s" % x1["sectionAt"])
+            s.key("X"); s.key("X"); s.key("X")
+            s.key("V")
+            v1 = s.shot("overlay-v")
+            check("V goes back to the look the model had", v1["cmpOverlay"] == "False" and v1["shading"] == a["shading"], v1["shading"])
+            s.key("D"); s.key("M")
+            m1 = s.shot("overlay-measure")
+            check("measuring shows one model alone again", m1["measure"] == "True" and m1["cmpOverlay"] == "False")
+            s.key("M")
+            press_at(s, spots_of(m1)["43"])
+            b1 = s.shot("overlay-clicked")
+            press_at(s, spots_of(b1)["40"])
+            b2 = s.shot("overlay-closed")
+            check("the Both row turns the overlay on, and the Compare button ends the compare", b1["cmpOverlay"] == "True" and b2["cmp"] == "False" and b2["shading"] == a["shading"]
+                  and b2["file"] == "plate-holes.stl", "%s, then %s" % (b1["cmpOverlay"], b2["cmp"]))
+        finally:
+            s.close()
+
+    # ── not in the same place, wrong units, a file that cannot be opened, replacing, reloading, stepping away ──
+    s = Session(exe, S("plate-holes.stl"), dark, out)
+    try:
+        a = s.shot("apart-start")
+        drop(s, S("plate-moved.stl"), ctrl=True)
+        b = s.shot("apart-second")
+        check("a copy exported 300 mm away is not in the same place", b["cmp"] == "True" and b["cmpAligned"] == "False" and b["cmpApart"] == "300.000", "%s mm apart" % b["cmpApart"])
+        check("the view moves back to take in both", f(b, "dist") > f(a, "dist") * 2, "%s -> %s" % (a["dist"], b["dist"]))
+        s.key("D")
+        c = s.shot("apart-no-overlay")
+        check("so there is no overlay, and the window says why", c["cmpOverlay"] == "False" and "Not in the same place" in c["toast"], c["toast"])
+        s.key(0x1B)
+        d = s.shot("apart-left")
+        check("leaving puts the view back where it was", d["cmp"] == "False" and view(d)[:5] == view(a)[:5], "%s, was %s" % (d["dist"], a["dist"]))
+
+        drop(s, S("plate-wrong-units.stl"), ctrl=True)
+        u = s.shot("units-second")
+        check("a file 25.4 times too large is called out as a likely units mix-up", "25.4" in u["cmpUnitNote"], u["cmpUnitNote"])
+        drop(s, S("plate-rev-b.stl"), ctrl=True)
+        r1 = s.shot("replaced")
+        check("comparing with another file replaces the second and keeps the first", r1["cmpFirst"] == "plate-holes.stl" and r1["cmpSecond"] == "plate-rev-b.stl" and r1["cmpShown"] == "2"
+              and r1["cmpUnitNote"] == "", "%s vs %s" % (r1["cmpFirst"], r1["cmpSecond"]))
+        s.key(0x74)
+        r2 = s.shot("reloaded-second")
+        check("F5 reloads the revision on screen and the compare carries on", r2["cmp"] == "True" and r2["cmpShown"] == "2" and r2["file"] == "plate-rev-b.stl"
+              and r2["cmpFirst"] == "plate-holes.stl", "%s shown, first %s" % (r2["file"], r2["cmpFirst"]))
+        drop(s, S("does-not-exist.stl"), ctrl=True)
+        m = s.shot("missing-second")
+        check("a second file that is not there says so and leaves the first open", m["cmp"] == "False" and "Couldn't open" in m["toast"] and m["file"] == "plate-holes.stl" and not m["error"], m["toast"])
+        drop(s, os.path.join(out, "broken.step"), ctrl=True)
+        m2 = s.shot("broken-second")
+        check("so does one that cannot be read", m2["cmp"] == "False" and "Couldn't open broken.step" in m2["toast"] and m2["file"] == "plate-holes.stl", m2["toast"])
+        drop(s, S("plate-holes.stl"), ctrl=True)
+        check("a model is not compared with itself", s.shot("same-file")["cmp"] == "False")
+
+        # The arrow keys step through the folder as before: each file is framed afresh, so the view is not kept.
+        drop(s, S("plate-rev-b.stl"), ctrl=True)
+        s.drag(700, 500, 880, 560)
+        t = s.shot("turned")
+        s.key(0x27)
+        n = s.shot("stepped")
+        check("an arrow key opens the next file and ends the compare", n["cmp"] == "False" and n["cmpHeld"] == "False" and n["file"] not in ("", t["file"]) and int(n["tris"]) > 0, n["file"])
+        check("stepping frames the new file afresh, as it always has", n["yaw"] == a["yaw"] and n["pitch"] == a["pitch"] and t["yaw"] != a["yaw"], "yaw %s after %s" % (n["yaw"], t["yaw"]))
+    finally:
+        code = s.close()
+    check("that session exits cleanly", code == 0)
+
+    # ── a narrow window: the card becomes a bar, so the part stays in view; a middling window has room for the card ──
+    narrow, _ = themed_env(env, out, "compare-narrow", "width=420\nheight=460\ntheme=light\nseenHint=1\n")
+    s = Session(exe, S("plate-holes.stl"), narrow, out)
+    try:
+        drop(s, S("plate-rev-b.stl"), ctrl=True)
+        a = s.shot("narrow-compare")
+        w, h = (int(v) for v in a["size"].split("x"))
+        bb = {k: tuple(float(v) for v in b_.split(",")) for k, b_ in (x.split(":") for x in a["buttonRects"].split(";") if x)}
+        mine = [bb[k] for k in ("41", "42", "43", "44") if k in bb]
+        rest = [v for k, v in bb.items() if k not in ("41", "42", "43", "44", "59")]
+        clash = any(p_[0] < q[0] + q[2] and q[0] < p_[0] + p_[2] and p_[1] < q[1] + q[3] and q[1] < p_[1] + p_[3] for p_ in mine for q in rest)
+        check("in a short, narrow window the card is a one-line bar", a["cmpCompact"] == "True" and len(mine) == 4 and "40" in bb, a["cmpCard"])
+        check("inside the window and clear of the toolbar", all(b_[0] >= 0 and b_[1] >= 0 and b_[0] + b_[2] <= w and b_[1] + b_[3] <= h for b_ in mine) and not clash, a["buttonRects"])
+        press_at(s, spots_of(a)["43"])
+        b = s.shot("narrow-overlay")
+        press_at(s, spots_of(b)["41"])
+        c = s.shot("narrow-first")
+        press_at(s, spots_of(c)["44"])
+        d = s.shot("narrow-closed")
+        check("its three choices and its close button work", b["cmpOverlay"] == "True" and c["cmpOverlay"] == "False" and c["cmpShown"] == "1" and d["cmp"] == "False",
+              "%s %s %s" % (b["cmpOverlay"], c["cmpShown"], d["cmp"]))
+    finally:
+        s.close()
+    tall, _ = themed_env(env, out, "compare-tall", "width=420\nheight=760\ntheme=dark\nseenHint=1\n")
+    s = Session(exe, S("plate-holes.stl"), tall, out)
+    try:
+        drop(s, S("plate-rev-b.stl"), ctrl=True)
+        a = s.shot("tall-compare")
+        w, h = (int(v) for v in a["size"].split("x"))
+        card = [float(v) for v in a["cmpCard"].split(",")]
+        check("a narrow window is given the bar however tall it is, so the card does not sit over the part", a["cmpCompact"] == "True" and card[0] >= 0 and card[0] + card[2] <= w
+              and card[3] < 0.1 * h, a["cmpCard"])
+        check("where the bar sits under the toasts, it speaks instead of them", a["toast"] == "", a["toast"])
+        s.key("D")
+        s.shot("tall-overlay")
+    finally:
+        s.close()
+    middling, _ = themed_env(env, out, "compare-middling", "width=760\nheight=640\ntheme=light\nseenHint=1\n")
+    s = Session(exe, S("plate-holes.stl"), middling, out)
+    try:
+        drop(s, S("plate-rev-b.stl"), ctrl=True)
+        s.key("D")
+        a = s.shot("middling-overlay")
+        w, h = (int(v) for v in a["size"].split("x"))
+        card = [float(v) for v in a["cmpCard"].split(",")]
+        check("a window of middling size has the whole card, inside the window", a["cmpCompact"] == "False" and a["cmpOverlay"] == "True" and card[0] >= 0 and card[1] >= 0
+              and card[0] + card[2] <= w and card[1] + card[3] <= h, "%s in %s" % (a["cmpCard"], a["size"]))
+    finally:
+        s.close()
+
+    # ── a million triangles each ──
+    s = Session(exe, S("knot-large.stl"), dark, out)
+    try:
+        a = s.shot("big-first")
+        t0 = time.time()
+        drop(s, S("knot-large-b.stl"), ctrl=True)
+        b = s.shot("big-second", timeout=120)
+        ready = time.time() - t0
+        r = rows_of(b)
+        check("two million-triangle models compare", b["cmp"] == "True" and r["Triangles"][:2] == ["1,008,000", "1,008,000"] and r["Volume, mm³"][2].startswith("+"),
+              "ready and analysed in %.1f s: %s" % (ready, b["cmpRows"]))
+        times = []
+        for i in range(4):
+            s.key(0x20)
+            times.append(f(s.shot("big-flip-%d" % i), "renderMs"))
+        check("a flip draws as fast as the model alone", max(times) < max(40.0, 4 * f(a, "renderMs")), "frames of %s ms; alone %s ms" % (", ".join("%.1f" % t for t in times), a["renderMs"]))
+        s.key("D")
+        o = s.shot("big-overlay")
+        s.drag(700, 500, 900, 560)
+        o2 = s.shot("big-overlay-turned")
+        check("the overlay of the pair draws at an interactive rate", o["cmpOverlay"] == "True" and max(f(o, "renderMs"), f(o2, "renderMs")) < 100.0,
+              "%s and %s ms a frame, same within %s mm" % (o["renderMs"], o2["renderMs"], o["overlayTol"]))
+        shares = tinted(Image.open(o2["png"]), (300, 200, 1150, 1000))
+        check("the swelling shows in amber and the rest stays neutral", 0.01 < shares[0] < 0.25 and shares[1] < 0.01, "amber %.3f blue %.4f" % shares[:2])
+        held = f(o2, "managedMB")
+        s.key(0x1B)
+        time.sleep(1.5)
+        z = s.shot("big-left")
+        check("leaving gives the second model's memory back", z["cmpHeld"] == "False" and z["cmpSpare"] == "False" and f(z, "managedMB") < held - 80,
+              "%.0f MB while comparing, %.0f MB after" % (held, f(z, "managedMB")))
+    finally:
+        code = s.close()
+    check("the large compare exits cleanly", code == 0)
+
+
+def recent_tests(exe, S, env, out):
+    """Recent files: the list in the empty window, what goes on it, and what does not."""
+    print("== Part 9: recent files ==")
+    fresh, data = themed_env(env, out, "recent", "theme=dark\nseenHint=1\n")
+    listed = lambda: [os.path.basename(l) for l in open(os.path.join(data, "recent.txt"), encoding="utf-8").read().split("\n") if l] \
+        if os.path.exists(os.path.join(data, "recent.txt")) else []
+
+    s = Session(exe, None, fresh, out)
+    try:
+        a = s.shot("recent-none")
+        check("with nothing opened yet the empty window shows no list", a["file"] == "" and a["recentRead"] == "True" and a["recentRows"] == "", a["recent"])
+        drop(s, S("plate-holes.stl"))
+        b = s.shot("recent-opened-one")
+        s.key(0x27)
+        c = s.shot("recent-stepped")
+        drop(s, S("knot.stl"))
+        s.shot("recent-opened-two")
+        drop(s, S("plate-rev-b.stl"), ctrl=True)
+        s.shot("recent-compared")
+        s.key(0x74)
+        s.shot("recent-reloaded")
+        check("with a model open nothing of the list is on screen", b["file"] == "plate-holes.stl" and b["recentRows"] == "" and c["file"] != "plate-holes.stl", c["file"])
+    finally:
+        s.close()
+    check("opened and compared models are remembered, newest first; a file stepped to with the arrow keys is not",
+          listed() == ["plate-rev-b.stl", "knot.stl", "plate-holes.stl"], " | ".join(listed()))
+
+    # A file that has gone, and something that is not a model, stay off the screen.
+    other = os.path.join(out, "notes.txt")
+    open(other, "w").write("not a model\n")
+    names = ["vase.obj", "gone-away.stl", "blocks.glb", "rounded-cube.step", "assembly.3mf", "bracket-ascii.stl", "box-ascii.ply", "two-blocks.gltf"]
+    with open(os.path.join(data, "recent.txt"), "w", encoding="utf-8") as fh_:
+        fh_.write("\n".join([S(names[0]), S(names[1]), other] + [S(n) for n in names[2:]] + [S("plate-holes.stl"), S("knot.stl"), S("plate-rev-b.stl"), S("plate-moved.stl")]) + "\n")
+    s = Session(exe, None, fresh, out)
+    try:
+        a = s.shot("recent-list")
+        w, h = (int(v) for v in a["size"].split("x"))
+        rows = [tuple(float(v) for v in r.split(",")) for r in a["recentRows"].split(";") if r]
+        check("the empty window lists the five newest models that still exist", a["recent"] == "vase.obj;blocks.glb;rounded-cube.step;assembly.3mf;bracket-ascii.stl" and len(rows) == 5, a["recent"])
+        s.post(WM_MOUSEMOVE, 0, s.xy(*rows[2]))
+        hov = s.shot("recent-hover")
+        check("a row lights up under the mouse", ImageChops_diff(a["png"], hov["png"], rows[2]))
+        press_at(s, rows[2])
+        b = s.shot("recent-clicked")
+        check("one click reopens a model", b["file"] == "rounded-cube.step" and int(b["tris"]) > 0 and not b["error"] and b["recentRows"] == "", b["file"])
+    finally:
+        s.close()
+    now = listed()
+    check("the reopened model moves to the top, and the list is kept to twelve", now[0] == "rounded-cube.step" and len(now) == 12 and now.count("rounded-cube.step") == 1
+          and "gone-away.stl" in now, "%d: %s" % (len(now), " | ".join(now[:4])))
+
+    for name, ini in (("light", "theme=light\nseenHint=1\n"), ("narrow", "width=420\nheight=460\ntheme=light\nseenHint=1\n"), ("short", "width=700\nheight=330\ntheme=dark\nseenHint=1\n")):
+        e_, d_ = themed_env(env, out, "recent-" + name, ini)
+        shutil.copy(os.path.join(data, "recent.txt"), os.path.join(d_, "recent.txt"))
+        s = Session(exe, None, e_, out)
+        try:
+            a = s.shot("recent-" + name)
+            w, h = (int(v) for v in a["size"].split("x"))
+            rr = [tuple(float(v) for v in r.split(",")) for r in a["recentRects"].split(";") if r]
+            want = 5 if name != "short" else 1
+            check("the list fits the window (%s)" % name, len(rr) >= want and all(r[0] >= 0 and r[1] >= 0 and r[0] + r[2] <= w and r[1] + r[3] <= h for r in rr),
+                  "%d rows in %s" % (len(rr), a["size"]))
+        finally:
+            s.close()
+
+    s = Session(exe, S("knot.stl"), fresh, out)
+    try:
+        a = s.shot("recent-with-file")
+        check("opened with a file, Glance shows the model and no list", a["file"] == "knot.stl" and a["recentRows"] == "" and a["recentRead"] == "False", a["recent"])
+    finally:
+        s.close()
+    check("and that file is now the newest", listed()[0] == "knot.stl", listed()[0])
+
+
+def ImageChops_diff(png_a, png_b, spot):
+    """True if two shots differ around a point (a hover highlight)."""
+    from PIL import ImageChops
+    box = (int(spot[0]) - 60, int(spot[1]) - 12, int(spot[0]) + 60, int(spot[1]) + 12)
+    return ImageChops.difference(Image.open(png_a).crop(box), Image.open(png_b).crop(box)).getbbox() is not None
+
+
 def main():
     exe, samples, out = (os.path.abspath(a) for a in sys.argv[1:4])
     os.makedirs(out, exist_ok=True)
@@ -1218,6 +1632,8 @@ def main():
     units_and_layflat_tests(exe, S, env, out)
     fraction_and_option_tests(exe, S, env, out)
     mesh_format_tests(exe, S, env, out)
+    compare_tests(exe, S, env, out)
+    recent_tests(exe, S, env, out)
     update_indicator_tests(exe, S, env, out)
 
     failed = [r for r in results if not r[1]]

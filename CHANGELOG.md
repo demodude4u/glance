@@ -2,6 +2,27 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
+## Unreleased
+
+- **Compare two revisions by flipping.** With a model open, press **D** (or the new **Compare** button) and pick
+  a second file, or drop one on the window with Ctrl held. **Space** flips between the two with the camera, the
+  shading and the section cut exactly where they were, so the eye sees only what changed. A card at the top right
+  shows which one is on screen (click a row to show it) and the size, volume and triangle count of both with the
+  change between them. The two files may be different formats and units. Measuring, sectioning and the rest work
+  on whichever is on screen. **Esc** or the card's close button puts the first model back on its own and releases
+  the second; **F5** reloads the one on screen and keeps comparing.
+- **Compare by overlay.** **D** again (or the card's **Both, overlaid** row) draws the two together: surface only
+  the first has in blue, surface only the second has in amber, and what they share in neutral grey. It compares
+  the surfaces as seen, not the triangles, so two exports of the same face count as the same within a tolerance
+  (the **Same within** option, about a thousandth of the part's size). It shows what is visible from where you
+  look; a section cut shows the inside. If the two files are not in the same place the card says so and gives no
+  overlay, rather than moving one to fit. README, "Comparing two revisions", says where the overlay can mislead.
+- **Recent files.** Opened without a file, Glance lists the five models opened most recently; one click reopens
+  one. Files that no longer exist are left out, and files stepped to with the arrow keys are not added. Glance
+  also reports each opened model to Windows for the **Recent** list on its taskbar and Start menu entry.
+- Opening a file is as fast as before: none of this runs before the first picture. The recent list is read and
+  written on a background thread afterwards, and the compare code is only touched when a second file is brought in.
+
 ## 1.6.0 (2026-11-18)
 
 - **3MF files.** Glance opens `.3mf`: the mesh objects, placed by components and by the build's items with their

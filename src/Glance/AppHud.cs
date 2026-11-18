@@ -47,6 +47,7 @@ internal static partial class App
             if (_section != 0) SectionSlider(s, m);
             if (_layFlat) { MeasureOverlay(s); LayFlatCard(s, m); }
             if (_measure) MeasureCard(s, m);
+            HudExtras(s, m);                    // the compare card (AppCompare.cs)
             if (_info) InfoCard(s, m);
             if (_fixUnits) FixUnitsCard(s);
             if (_picture) PictureCard(s, m);
@@ -173,11 +174,12 @@ internal static partial class App
 
     static void EmptyState(float s)
     {
-        float cx = _w / 2f, cy = _h / 2f - 34 * s;
+        float cx = _w / 2f, cy = _h / 2f - 34 * s - RecentLift(s);
         U.Rect(cx - 14 * s, cy - 18 * s, 28 * s, 3 * s, 1.5f * s, _theme.Accent);
         U.TextCentered(U.Title, "Drop a model to take a look", cx, cy, _theme.Text);
         U.TextCentered(U.Body, "STL  ·  OBJ  ·  3MF  ·  PLY  ·  glTF  ·  STEP  ·  IGES", cx, cy + U.Title.Height + 10 * s, _theme.Dim);
         U.TextCentered(U.Body, "or press O to browse", cx, cy + U.Title.Height + U.Body.Height + 16 * s, Fade(_theme.Dim, 0.75f));
+        RecentList(s, cy + U.Title.Height + U.Body.Height * 2 + 46 * s);      // recently opened models (AppRecent.cs)
     }
 
     static void ErrorState(float s)
@@ -230,6 +232,7 @@ internal static partial class App
         ("F", "Fit to window"), ("1 – 6", "Front, back, left, right, top, bottom"), ("0", "Isometric view"),
         ("P", "Perspective / orthographic"), ("R", "Turntable"),
         ("M", "Measure: click faces, edges, corners"), ("L", "Lay flat: click the face to rest on"), ("X", "Section cut (Ctrl+scroll to move)"),
+        ("D", "Compare with another file"), ("Space", "Comparing: flip between the two"),
     ];
     static readonly (string Key, string What)[] HelpRight =
     [
