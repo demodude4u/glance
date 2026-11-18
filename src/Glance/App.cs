@@ -274,6 +274,7 @@ internal static unsafe partial class App
     /// <param name="keepView">A reload of the open file: the view, section cut and shading stay as they are.</param>
     static void StartLoad(string path, long startedAt = 0, bool keepView = false)
     {
+        BeforeOpen(path);                   // AppCompare.cs: a compare in progress ends; is this open one to remember?
         int gen = ++_loadGen;
         _keepGen = keepView ? gen : -1;
         _loading = true; _loadName = Path.GetFileName(path); _loadStage = "";
@@ -311,6 +312,7 @@ internal static unsafe partial class App
             {
                 // Caught half-written, or saved broken: what is on screen stays until the file can be read again.
                 Toast("The file changed, but the new version can't be opened yet", 4f);
+                AfterOpen();                // a compare that was under way carries on with the model still on screen
                 UpdateTitle(); Invalidate();
                 return;
             }
@@ -344,6 +346,7 @@ internal static unsafe partial class App
         _loadMs = Seconds(_loadStart) * 1000;
         _stampLoad = true;
         UpdateTitle(); Invalidate();
+        AfterOpen();                        // AppCompare.cs: recent files, and a compare to set up again after a reload
 
         string opened = _path!;
         new Thread(() =>
@@ -400,6 +403,7 @@ internal static unsafe partial class App
         }
         _center = (_wMin + _wMax) * 0.5f;
         _radius = MathF.Max((_wMax - _wMin).Length() * 0.5f, 1e-6f);
+        CompareBounds();                    // AppCompare.cs: while comparing, the bounds of both models together
     }
 
     static void StepFile(int dir)
@@ -415,6 +419,7 @@ internal static unsafe partial class App
             int i = files.FindIndex(f => string.Equals(f, _path, StringComparison.OrdinalIgnoreCase));
             if (files.Count == 1 && i == 0) { Toast("This is the only model in the folder"); return; }
             int next = ((i < 0 ? 0 : i + dir) % files.Count + files.Count) % files.Count;
+            _browse = true;                 // stepping through a folder is not kept as a recent file
             StartLoad(files[next]);
             Toast($"{next + 1} of {files.Count}", 1.4f);
         }
@@ -658,6 +663,7 @@ internal static unsafe partial class App
     static void Render(bool hud, bool toWindow = true)
     {
         if (_w <= 0 || _h <= 0) return;
+        if (RenderOverlay(hud, toWindow)) return;       // comparing, both models drawn together (AppCompare.cs)
         bool studio = _style >= 4 && _mesh != null && R.HasMesh;
         // Each mode's own options (see AppOptions.cs). Only the mode that is on is asked, so the others are never set up.
         int light = 0, surface = 1, backdrop = 0;
@@ -813,13 +819,14 @@ internal static unsafe partial class App
         if (dir == null) { _pendingShot = -1; return; }
         bool camStill = _orientT >= 1 && _cur.Yaw == _goal.Yaw && _cur.Pitch == _goal.Pitch && _cur.Dist == _goal.Dist && _cur.Target == _goal.Target;
         bool settled = !_loading && (_spin || (camStill && MathF.Abs(_velYaw) + MathF.Abs(_velPitch) == 0)) && (_mesh == null || _mesh.Analyzed) && _posted.IsEmpty && !FactsWaiting;
-        if (!settled) { Invalidate(); return; }
+        if (!settled || !ExtrasSettled) { Invalidate(); return; }
         int n = _pendingShot; _pendingShot = -1;
         Render(hud: true);
         byte[] px = ReadPixels();
         WriteBmp(Path.Combine(dir, $"shot{n}.bmp"), px);
         Mesh? m = _mesh;
         File.WriteAllText(Path.Combine(dir, $"shot{n}.txt"), string.Join('\n',
+            TestState(),                    // compare and recent files (AppCompare.cs)
             $"file={(_path != null ? Path.GetFileName(_path) : "")}", $"error={_error}", $"tris={m?.TriCount ?? 0}",
             $"yaw={_cur.Yaw:0.0000}", $"pitch={_cur.Pitch:0.0000}", $"dist={_cur.Dist:0.0000}",
             $"target={_cur.Target.X:0.000},{_cur.Target.Y:0.000},{_cur.Target.Z:0.000}", $"radius={_radius:0.000}",

@@ -51,6 +51,9 @@ internal static unsafe partial class App
         {
             Thread.Sleep(500);
             Watched? w = _watch;
+            // While comparing, a flip puts the other file on screen: the one on screen is the one that is watched.
+            string? shown = _path;
+            if (shown != null && !_loading && w != null && w.Path != shown) { _watch = Baseline(shown); continue; }
             if (w == null || ReferenceEquals(w, handled)) continue;
             if (!FileState(w.Path, out long stamp, out long length)) continue;      // gone for the moment: it may be being replaced
             if (stamp == w.Stamp && length == w.Length) continue;

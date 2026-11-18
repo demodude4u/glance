@@ -188,7 +188,7 @@ internal static unsafe partial class App
     }
 
     /// <summary>The options of the shading mode that is on.</summary>
-    static ModeOption[]? ModeOptions() => _mesh == null ? null : Shadings[ShadingIndex()].Name switch
+    static ModeOption[]? ModeOptions() => _mesh == null ? null : Overlaying ? OverlayLook.All : Shadings[ShadingIndex()].Name switch
     {
         "Studio" => StudioLook.All,
         "Metal" => MetalLook.All,
@@ -221,7 +221,7 @@ internal static unsafe partial class App
     static void SceneLook()
     {
         int theme = _theme.Dark ? 2 : 0, behind = theme;        // 0 light, 1 mid grey, 2 dark
-        if (_mesh != null)
+        if (_mesh != null && !Overlaying)
             behind = _style switch
             {
                 4 => StudioLook.Backdrop.Value,

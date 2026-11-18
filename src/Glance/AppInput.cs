@@ -88,6 +88,10 @@ internal static unsafe partial class App
                 _pendingShot = (int)wp; Invalidate();
                 return true;
 
+            case WM_APP + 20:       // test hook: what a dropped file does (AppCompare.cs)
+                TestHook((int)wp);
+                return true;
+
             case WM_LBUTTONDOWN:
                 if (_help) { _help = false; Invalidate(); return true; }
                 if (HudClick(mx, my)) return true;
@@ -121,6 +125,7 @@ internal static unsafe partial class App
                 if (_drag == 3) { DragSlider(mx); return true; }
                 if (_drag != 0 && _mesh != null) Drag(mx, my);
                 else if (_mesh != null && (_measure || _layFlat || _fixUnits || _picture || my < MathF.Max(64 * _scale, _optBottom + 16 * _scale) || _hotButton >= 0)) { _hoverDirty = _measure || _layFlat; Invalidate(); }
+                else if (HoverExtra(mx, my)) Invalidate();              // the compare card, the recent files list
                 return true;
 
             case WM_LBUTTONDBLCLK:
@@ -147,7 +152,7 @@ internal static unsafe partial class App
 
             case WM_DROPFILES:
                 char* buf = stackalloc char[2048];
-                if (DragQueryFileW((nint)wp, 0, buf, 2048) > 0) StartLoad(new string(buf));
+                if (DragQueryFileW((nint)wp, 0, buf, 2048) > 0) { string dropped = new(buf); if (!CompareDrop(dropped)) StartLoad(dropped); }     // with Ctrl held: compare
                 DragFinish((nint)wp);
                 return true;
 
@@ -223,6 +228,7 @@ internal static unsafe partial class App
     {
         if (vk >= 0x60 && vk <= 0x69) vk = 0x30 + (vk - 0x60);      // numpad digits
         if (_weightPick && WeightKey(vk)) { Invalidate(); return; }
+        if (CompareKey(vk)) { Invalidate(); return; }               // D, and Space while comparing (AppCompare.cs)
         switch (vk)
         {
             case 0x1B:
@@ -233,6 +239,7 @@ internal static unsafe partial class App
                 else if (_layFlat) { _layFlat = false; _hover = null; }
                 else if (_measure && (_selA != null || _selB != null)) ClearMeasure();
                 else if (_measure) { _measure = false; ClearMeasure(); }
+                else if (Comparing) EndCompare();
                 else if (_section != 0) _section = 0;
                 else PostMessageW(_hwnd, WM_CLOSE, 0, 0);
                 break;

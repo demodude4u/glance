@@ -123,10 +123,11 @@ internal static unsafe partial class App
         return 0;
     }
 
-    static string ShadingName => Shadings[ShadingIndex()].Name;
+    static string ShadingName => Overlaying ? "Overlay" : Shadings[ShadingIndex()].Name;
 
     static void CycleShading(bool back = false)
     {
+        if (Overlaying) { _cmpOverlay = false; Toast($"{ShadingName}  ·  overlay off"); return; }      // comparing: back to the look it had
         var next = Shadings[(ShadingIndex() + (back ? Shadings.Length - 1 : 1)) % Shadings.Length];
         _style = next.Style; _edges = next.Edges; _wire = next.Wire;
         if (_style == 2) _edges = Settings.Option("xray.edges", 1) == 1;       // X-ray remembers whether its edges were on
@@ -248,6 +249,7 @@ internal static unsafe partial class App
     static Vector4? ClipPlane()
     {
         if (_section == 0 || _mesh == null) return null;
+        if (_cmp && _cmpMesh != null) return CompareClip(_mesh);       // comparing: one plane for both models (AppCompare.cs)
         int a = _section - 1;
         float lo = a == 0 ? _mesh.Min.X : a == 1 ? _mesh.Min.Y : _mesh.Min.Z, hi = a == 0 ? _mesh.Max.X : a == 1 ? _mesh.Max.Y : _mesh.Max.Z;
         float pad = (hi - lo) * 0.002f;
@@ -315,7 +317,7 @@ internal static unsafe partial class App
     static bool HudClick(int mx, int my)
     {
         if (UpdateClick(mx, my)) return true;
-        if (_mesh == null) return false;
+        if (_mesh == null) return RecentClick(mx, my);
         if (_picture) return PictureClick(mx, my);
         if (_weightPick) return WeightClick(mx, my);
         if (_fixUnits)                      // the chooser is modal: a row picks, anywhere else closes
@@ -343,6 +345,7 @@ internal static unsafe partial class App
                 case 7: ToggleOrtho(); break;
                 case 8: CycleShading(); break;
                 case 9: TogglePicture(); break;
+                case >= ActCompare and < 60: CompareAction(b.Action); break;
                 case >= 100: CycleOption(b.Action - 100); break;
             }
             Invalidate();
@@ -374,9 +377,9 @@ internal static unsafe partial class App
 
     static void Toolbar(float s, float m)
     {
-        string[] labels = ["Measure", _section == 0 ? "Section" : "Section " + "XYZ"[_section - 1], "Box", "Lay flat", "Ortho", ShadingName, UnitButton];
-        bool[] on = [_measure, _section != 0, _box, _layFlat, _ortho, false, false];
-        int[] actions = [0, 1, 2, 6, 7, 8, 3];
+        string[] labels = ["Measure", _section == 0 ? "Section" : "Section " + "XYZ"[_section - 1], "Box", "Lay flat", "Ortho", ShadingName, UnitButton, "Compare"];
+        bool[] on = [_measure, _section != 0, _box, _layFlat, _ortho, false, false, Comparing];
+        int[] actions = [0, 1, 2, 6, 7, 8, 3, ActCompare];
         float x = m, y = m, h = 32 * s, pad = 14 * s, gap = 6 * s;
         // In a narrow window the buttons wrap onto more lines. The first line stops short of the Picture button
         // (top right); the lines under it can use the whole width.
@@ -553,14 +556,14 @@ internal static unsafe partial class App
     }
 
     /// <summary>Size as it stands on the ground: the file's own axes, or the turned model after "Lay flat".</summary>
-    static Vector3 ShownSize() => _customOrient ? _wMax - _wMin : _mesh!.Max - _mesh.Min;
+    static Vector3 ShownSize() => _customOrient ? OwnMax - OwnMin : _mesh!.Max - _mesh.Min;
 
     static void BoxDims(float s)
     {
         // Laid flat: the box around the model as it now stands (width, depth, height).
         // Otherwise: the box in the file's own axes.
         bool custom = _customOrient;
-        Vector3 lo = custom ? _wMin : _mesh!.Min, hi = custom ? _wMax : _mesh!.Max;
+        Vector3 lo = custom ? OwnMin : _mesh!.Min, hi = custom ? OwnMax : _mesh!.Max;
         Matrix4x4 toClip = custom ? _vp : _mvp;
         Vector3 C(int i) => new((i & 1) == 0 ? lo.X : hi.X, (i & 2) == 0 ? lo.Y : hi.Y, (i & 4) == 0 ? lo.Z : hi.Z);
         Vector4 line = new(_theme.Dim.X, _theme.Dim.Y, _theme.Dim.Z, 0.55f);

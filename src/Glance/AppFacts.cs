@@ -12,13 +12,15 @@ internal static unsafe partial class App
 {
     // ───────────────────────── Facts worked out in the background ─────────────────────────
 
-    static Mesh? _factsMesh, _factsBusy;
-    static PartFacts? _facts;
+    // Kept with the mesh they describe and let go with it. While comparing there are two meshes, flipped between
+    // at a keypress, and each keeps its own.
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Mesh, PartFacts> _factsOf = new();
+    static Mesh? _factsBusy;
 
     /// <summary>The facts for this mesh, or null while they are being worked out (the card is drawn again when they arrive).</summary>
     static PartFacts? FactsFor(Mesh m)
     {
-        if (ReferenceEquals(_factsMesh, m)) return _facts;
+        if (_factsOf.TryGetValue(m, out PartFacts? known)) return known;
         if (!m.Analyzed || _factsBusy != null) return null;
         _factsBusy = m;
         new Thread(() =>
@@ -27,17 +29,17 @@ internal static unsafe partial class App
             Post(() =>
             {
                 _factsBusy = null;
-                if (_mesh == m) { _factsMesh = m; _facts = f; }
+                _factsOf.AddOrUpdate(m, f);
                 Invalidate();
             });
         }) { IsBackground = true, Priority = ThreadPriority.BelowNormal, Name = "facts" }.Start();
         return null;
     }
 
-    static void DropFacts() { _factsMesh = null; _facts = null; _hotFact = -1; }
+    static void DropFacts() => _hotFact = -1;
 
     /// <summary>True while the open card is still waiting for its numbers (the tests wait for them).</summary>
-    static bool FactsWaiting => _info && _mesh != null && !ReferenceEquals(_factsMesh, _mesh);
+    static bool FactsWaiting => _info && _mesh != null && !_factsOf.TryGetValue(_mesh, out _);
 
     // ───────────────────────── Weight ─────────────────────────
 
@@ -462,7 +464,7 @@ internal static unsafe partial class App
     static IEnumerable<string> FactsState()
     {
         Mesh? m = _mesh;
-        PartFacts? f = m != null && ReferenceEquals(_factsMesh, m) ? _facts : null;
+        PartFacts? f = m != null && _factsOf.TryGetValue(m, out PartFacts? known) ? known : null;
         string inv(double v) => v.ToString("0.000", CultureInfo.InvariantCulture);
         yield return $"copied={_copied.Replace('\n', '|').Replace('\t', '~')}";
         yield return $"reloads={_reloads}";
