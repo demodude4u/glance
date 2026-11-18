@@ -49,6 +49,7 @@ internal static partial class App
             if (_measure) MeasureCard(s, m);
             if (_info) InfoCard(s, m);
             if (_fixUnits) FixUnitsCard(s);
+            if (_weightPick) WeightCard(s);
             if (_picture) PictureCard(s, m);
         }
         else if (_error != null) ErrorState(s);
@@ -82,7 +83,7 @@ internal static partial class App
         }
         float x = m, y = _h - m - h;
         _pillRight = x + width;
-        Pill(x, y, width, h);
+        Pill(x, y, width, h, _pillHot);              // a click copies the size
         float tx = x + pad, ty = y + (h - U.Body.Height) / 2;
         for (int i = 0; i < parts.Count; i++)
         {
@@ -134,41 +135,6 @@ internal static partial class App
         U.Rect(x - 1, y + 2 * s, w + 2, h + 2 * s, 12 * s, new Vector4(0, 0, 0, _theme.Dark ? 0.28f : 0.10f));
         U.Rect(x, y, w, h, 11 * s, _theme.Card);
         U.Rect(x, y, w, h, 11 * s, _theme.PanelBorder, 1);
-    }
-
-    static void InfoCard(float s, float m)
-    {
-        Mesh mesh = _mesh!;
-        Vector3 d = ShownSize();
-        bool turned = _customOrient;
-        var rows = new List<(string, string)>
-        {
-            ("Format", mesh.Format),
-            ("File size", Bytes(mesh.FileSize)),
-            ("File units", Loaders.UnitLabel(mesh.FileUnit) + (!mesh.UnitChoice || mesh.UnitSource == 0 ? "" : mesh.UnitSource == 1 ? "  ·  assumed" : "  ·  your choice")),
-            ("Triangles", mesh.TriCount.ToString("N0")),
-            (turned ? "Width" : "Width  X", Len(d.X)),
-            (turned ? "Depth" : "Depth  Y", Len(d.Y)),
-            (turned ? "Height" : "Height  Z", Len(d.Z)),
-            ("Surface area", mesh.Analyzed ? AreaText(mesh.Area) : "…"),
-            ("Volume", !mesh.Analyzed ? "…" : mesh.Closed ? VolumeText(mesh.Volume) : "–"),
-            ("Watertight", !mesh.Analyzed ? "…" : mesh.Closed ? "Yes" : mesh.OpenEdges > 0 ? $"No  ·  {mesh.OpenEdges:N0} open edges" : "No"),
-            ("Opened in", Time(_loadMs) + (mesh.FromCache ? "  ·  cached" : "")),
-        };
-        float pad = 16 * s, row = 23 * s, w = 268 * s, head = 30 * s;
-        float h = pad * 2 + head + rows.Count * row - 4 * s;
-        float x = m, y = _optBottom + 14 * s;                                           // under the toolbar and the mode's options
-        if (_sliderBox.W > 0 && _sliderBox.X < x + w + 12 * s) y = MathF.Max(y, _sliderBox.Y + _sliderBox.H + 10 * s);
-        Card(x, y, w, h, s);
-        U.Text(U.Medium, Fit(U.Medium, Path.GetFileName(_path ?? ""), w - pad * 2), x + pad, y + pad, _theme.Text);
-        U.Rect(x + pad, y + pad + head - 8 * s, 22 * s, 2 * s, s, _theme.Accent);
-        float ty = y + pad + head;
-        foreach (var (k, v) in rows)
-        {
-            U.Text(U.Body, k, x + pad, ty, _theme.Dim);
-            U.Text(U.Body, v, x + w - pad - U.Measure(U.Body, v), ty, _theme.Text);
-            ty += row;
-        }
     }
 
     static void EmptyState(float s)
@@ -234,8 +200,8 @@ internal static partial class App
     static readonly (string Key, string What)[] HelpRight =
     [
         ("V", "Shading, with options under the toolbar"), ("E", "Edges"), ("W", "Wireframe"), ("S", "Smooth / flat shading"), ("G", "Grid"), ("C", "Color"), ("T", "Light / dark"),
-        ("B", "Bounding box"), ("U", "Show mm / inch / inch fractions"), ("Shift U", "STL / OBJ / PLY: file's own units"), ("Z", "Flip the up axis / undo lay flat"), ("I", "Details"), ("← →", "Previous / next file"), ("O", "Open a file"),
-        ("Ctrl C", "Copy a picture"), ("Ctrl S", "Save a picture (PNG, Full HD, 4K…)"), ("Esc", "Close"),
+        ("B", "Bounding box"), ("U", "Show mm / inch / inch fractions"), ("Shift U", "STL / OBJ / PLY: file's own units"), ("Z", "Flip the up axis / undo lay flat"), ("I", "Details: weight, holes, stock size"), ("← →", "Previous / next file"), ("O", "Open a file"),
+        ("Ctrl C", "Copy a picture"), ("Ctrl Shift C", "Copy the size or measurement"), ("Ctrl S", "Save a picture (PNG, Full HD, 4K…)"), ("Esc", "Close"),
     ];
 
     static void HelpCard(float s)

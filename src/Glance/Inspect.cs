@@ -150,7 +150,7 @@ internal static class Inspect
     }
 
     /// <summary>Least-squares circle through 3D points. With <paramref name="axis"/> the plane is given; otherwise it is found.</summary>
-    static bool FitCircle(ReadOnlySpan<Vector3> pts, Vector3? axis, out Vector3 center, out Vector3 normal, out float radius,
+    internal static bool FitCircle(ReadOnlySpan<Vector3> pts, Vector3? axis, out Vector3 center, out Vector3 normal, out float radius,
         out float residual, out float sweep, bool closed)
     {
         center = default; normal = default; radius = 0; residual = float.MaxValue; sweep = 0;
@@ -280,7 +280,7 @@ internal static class Inspect
     }
 
     /// <summary>Smallest eigenvector of a symmetric 3×3 matrix (Jacobi), plus the two smallest eigenvalues.</summary>
-    static void Eigen(double a00, double a01, double a02, double a11, double a12, double a22, out Vector3 smallest, out double l0, out double l1)
+    internal static void Eigen(double a00, double a01, double a02, double a11, double a12, double a22, out Vector3 smallest, out double l0, out double l1)
     {
         double[,] a = { { a00, a01, a02 }, { a01, a11, a12 }, { a02, a12, a22 } };
         double[,] v = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };

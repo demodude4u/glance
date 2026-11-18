@@ -1101,6 +1101,203 @@ def mesh_format_tests(exe, S, env, out):
     check("format sessions exit cleanly", code == 0)
 
 
+def details_and_reload_tests(exe, S, env, out):
+    print("== Part 8: details (stock size, weight, holes), copying numbers, reload when the file changes ==")
+    import math
+    import struct
+
+    def rows(state, key="factRows"):
+        return dict((r.split(":")[0], tuple(float(v) for v in r.split(":")[1].split(","))) for r in state[key].split(";") if r)
+
+    def values(state):
+        return dict(r.split(":", 1) for r in state["factValues"].split(";") if r)
+
+    def spot(state, key):
+        return tuple(float(v) for v in state[key].split(","))
+
+    def press(s, at):
+        s.post_many([(WM_LBUTTONDOWN, 1, s.xy(*at)), (WM_LBUTTONUP, 0, s.xy(*at))], gap=0.03)
+
+    def near(text, want, tol=0.01):
+        got = [float(v) for v in text.split(",")] if text else []
+        return len(got) == len(want) and all(abs(g - e) < tol for g, e in zip(got, want))
+
+    def until(s, name, done, seconds=8):
+        """Shots until done(state) holds: the watcher looks at the file twice a second."""
+        end = time.time() + seconds
+        while True:
+            st = s.shot(name)
+            if done(st) or time.time() > end:
+                return st
+            time.sleep(0.25)
+
+    s = Session(exe, S("plate-holes.stl"), env, out)
+    try:
+        st = s.shot("details-units")
+        for _ in range(3):
+            if st["units"] == "mm":
+                break
+            s.key("U"); st = s.shot("details-units")
+        if st["ortho"] == "False":
+            s.key("P")
+        s.key("I")
+        a = s.shot("details")
+        v, r = values(a), rows(a)
+        check("the details card finds the round holes and groups them by size", a["holeCount"] == "2" and a["holes"] == "1x8.000:10.000;1x12.000:10.000", a["holes"])
+        check("and lists them, with their depth", v.get("Holes") == "2" and v.get("1_×__Ø_8.00_mm") == "10.00 mm deep" and v.get("1_×__Ø_12.00_mm") == "10.00 mm deep", a["factValues"])
+        check("the stock size of a plate that lies square is its own size", near(a["stock"], (80, 50, 10)) and a["stockTurned"] == "False"
+              and v.get("Stock_size") == "80.00 × 50.00 × 10.00 mm", "%s, turned %s" % (a["stock"], a["stockTurned"]))
+        check("with no material chosen there is no weight, only the offer", v.get("Material") == "Choose…" and "Weight" not in v, a["factValues"])
+
+        press(s, r["Volume"])
+        b = s.shot("copy-volume")
+        check("clicking a value copies it and says so", b["copied"] == v["Volume"] and b["toast"].startswith("Copied"), "%s / %s" % (b["copied"], b["toast"]))
+        press(s, spot(a, "factTitle"))
+        c = s.shot("copy-all")
+        check("clicking the file name copies the whole card as lines of label and value",
+              c["copied"].startswith("plate-holes.stl|Format~STL|") and "|Volume~" + v["Volume"] in c["copied"] and "|1 ×  Ø 12.00 mm~10.00 mm deep" in c["copied"], c["copied"][:90])
+        press(s, r["Holes"])
+        d = s.shot("copy-holes")
+        check("clicking Holes copies the hole list", d["copied"] == "1 ×  Ø 8.00 mm, 10.00 mm deep|1 ×  Ø 12.00 mm, 10.00 mm deep", d["copied"])
+        press(s, spot(a, "pill"))
+        e = s.shot("copy-size")
+        check("clicking the size read-out copies the size", e["copied"] == "80.00 × 50.00 × 10.00 mm" and e["copied"] == e["sizeText"], e["copied"])
+
+        s.post(WM_MOUSEMOVE, 0, s.xy(*r["1_×__Ø_12.00_mm"]))
+        h = s.shot("hover-hole")
+        check("pointing at a hole size picks out that row (and rings the holes on the part)", h["hotFact"] == str(list(r).index("1_×__Ø_12.00_mm")), h["hotFact"])
+        s.post(WM_MOUSEMOVE, 0, s.xy(*r["Stock_size"]))
+        s.shot("hover-stock")
+
+        press(s, r["Material"])
+        w = s.shot("material-chooser")
+        wr = rows(w, "weightRows")
+        check("clicking Material opens the chooser: twelve materials, custom, none", w["weightPick"] == "True" and len(wr) == 14 and "steel" in wr and "custom" in wr and "none" in wr, w["weightRows"])
+        press(s, wr["steel"])
+        x = s.shot("steel")
+        grams = float(x["volume"]) / 1000 * 7.85
+        shown = values(x).get("Weight", "")
+        check("picking steel closes it and gives the weight", x["weightPick"] == "False" and x["weightMaterial"] == "steel" and abs(float(x["weightG"]) - grams) < 0.01
+              and shown.endswith(" g") and abs(float(shown[:-2]) - grams) < 0.051 and values(x).get("Material", "").startswith("Steel"),
+              "%s (volume %s mm3, expected %.2f g)" % (shown, x["volume"], grams))
+        s.key("U")
+        u = s.shot("weight-inches")
+        lb = values(u).get("Weight", "")
+        check("in inches the weight is in pounds", lb.endswith(" lb") and abs(float(lb[:-3]) - grams / 453.59237) < 0.001, lb)
+        s.key("U"); s.key("U")
+
+        press(s, rows(x)["Material"])
+        s.shot("material-again")
+        for k in ("2", 0xBE, "7"):
+            s.key(k)
+        y = s.shot("density-typed")
+        s.key(0x0D)
+        z = s.shot("custom-density")
+        check("a typed density makes a custom material", y["densityText"] == "2.7" and y["weightPick"] == "True" and z["weightPick"] == "False" and z["weightMaterial"] == "custom"
+              and abs(float(z["weightG"]) - float(z["volume"]) / 1000 * 2.7) < 0.01, "typed %s, %s g" % (y["densityText"], z["weightG"]))
+        press(s, rows(z)["Material"])
+        s.shot("material-third")
+        s.key(0x1B)
+        esc = s.shot("material-esc")
+        check("Esc closes the chooser, not Glance, and changes nothing", esc["weightPick"] == "False" and esc["weightMaterial"] == "custom")
+        press(s, rows(esc)["Material"])
+        again = s.shot("material-fourth")
+        press(s, rows(again, "weightRows")["none"])
+        none = s.shot("no-material")
+        check("No material takes the weight away again", none["weightMaterial"] == "" and "Weight" not in values(none), none["factValues"])
+
+        s.key("I"); s.key("5"); s.key("M")
+        m0 = s.shot("measure-on")
+        click(s, m0, 40, 8, 10)
+        m1 = s.shot("measure-face")
+        press(s, spot(m1, "measureCard"))
+        m2 = s.shot("measure-copied")
+        check("clicking the measurement copies it", m1["selA"] == "Plane" and m2["selA"] == "Plane" and m2["copied"] == m1["result"] and m2["copied"].endswith("mm²"), m2["copied"])
+        s.post(0x8000 + 7)
+        m3 = s.shot("measure-shortcut")
+        s.key(0x1B); s.key(0x1B)
+        s.post(0x8000 + 7)
+        m4 = s.shot("size-shortcut")
+        check("Ctrl+Shift+C copies the measurement, or the size when there is none", m3["copied"] == m1["result"] and m4["measure"] == "False" and m4["copied"] == m4["sizeText"], "%s / %s" % (m3["copied"], m4["copied"]))
+    finally:
+        code = s.close()
+    check("details session exits cleanly", code == 0)
+
+    # A 60 x 40 x 10 block saved at an angle: the box along the file's axes is far larger than the stock it needs.
+    work = os.path.join(out, "facts")
+    shutil.rmtree(work, ignore_errors=True)
+    os.makedirs(work)
+
+    def turn(p):
+        cz, sz, cx, sx = math.cos(math.radians(30)), math.sin(math.radians(30)), math.cos(math.radians(20)), math.sin(math.radians(20))
+        x, y, z = p[0] * cz - p[1] * sz, p[0] * sz + p[1] * cz, p[2]
+        return (x, y * cx - z * sx, y * sx + z * cx)
+
+    corners = [turn((60.0 if i & 1 else 0.0, 40.0 if i & 2 else 0.0, 10.0 if i & 4 else 0.0)) for i in range(8)]
+    quads = [(0, 2, 3, 1), (4, 5, 7, 6), (0, 1, 5, 4), (1, 3, 7, 5), (3, 2, 6, 7), (2, 0, 4, 6)]
+    with open(os.path.join(work, "block-at-an-angle.stl"), "wb") as fh:
+        fh.write(b"Glance test".ljust(80, b" ") + struct.pack("<I", 12))
+        for q in quads:
+            for tri in ((q[0], q[1], q[2]), (q[0], q[2], q[3])):
+                fh.write(struct.pack("<3f", 0, 0, 0) + b"".join(struct.pack("<3f", *corners[i]) for i in tri) + b"\0\0")
+    s = Session(exe, os.path.join(work, "block-at-an-angle.stl"), env, out)
+    try:
+        s.key("I")
+        a = s.shot("stock-turned")
+        dims = [float(t) for t in a["dims"].split(",")]
+        check("a block saved at an angle still gets its true stock size", near(a["stock"], (60, 40, 10)) and a["stockTurned"] == "True" and dims[0] * dims[1] * dims[2] > 60 * 40 * 10 * 2
+              and values(a).get("Stock_size") == "60.00 × 40.00 × 10.00 mm", "stock %s, box along the axes %s" % (a["stock"], a["dims"]))
+        check("a part without holes says so", a["holeCount"] == "0" and values(a).get("Holes") == "None", a["holes"])
+        s.post(WM_MOUSEMOVE, 0, s.xy(*rows(a)["Stock_size"]))
+        s.shot("stock-turned-hover")
+    finally:
+        s.close()
+
+    s = Session(exe, S("as1-oc-214.stp"), env, out)
+    try:
+        s.key("I")
+        a = s.shot("details-step")
+        check("a STEP assembly's holes are found from its CAD faces", int(a["holeCount"]) > 0 and all(g.split("x")[0].isdigit() for g in a["holes"].split(";") if g),
+              "%s holes: %s" % (a["holeCount"], a["holes"]))
+        hole_rows = [k for k in rows(a) if "Ø" in k]
+        if hole_rows:
+            s.post(WM_MOUSEMOVE, 0, s.xy(*rows(a)[hole_rows[0]]))
+            s.shot("details-step-hover")
+        s.key("T")
+        s.shot("details-step-light")
+        s.key("T")
+    finally:
+        s.close()
+
+    # Reload when the file changes on disk.
+    part = os.path.join(work, "part.stl")
+    shutil.copy(S("plate-holes.stl"), part)
+    s = Session(exe, part, env, out)
+    try:
+        a = s.shot("reload-start")
+        w, h = (int(t) for t in a["size"].split("x"))
+        s.drag(w // 2, h // 2, w // 2 + 200, h // 2 + 60)
+        s.key("X")
+        b = s.shot("reload-before")
+        shutil.copy(S("bracket-ascii.stl"), part)
+        c = until(s, "reload-after", lambda st: st["reloads"] == "1")
+        check("saving over the open file reloads it", c["reloads"] == "1" and c["tris"] != b["tris"] and c["error"] == "" and c["file"] == "part.stl",
+              "%s -> %s triangles, toast: %s" % (b["tris"], c["tris"], c["toast"]))
+        check("the view and the section cut stay as they were", abs(f(c, "yaw") - f(b, "yaw")) < 1e-4 and abs(f(c, "pitch") - f(b, "pitch")) < 1e-4
+              and abs(f(c, "dist") - f(b, "dist")) < 1e-3 and c["section"] == b["section"] == "1",
+              "yaw %s -> %s, distance %s -> %s, section %s" % (b["yaw"], c["yaw"], b["dist"], c["dist"], c["section"]))
+        with open(part, "wb") as fh:
+            fh.write(b"half of a file that is still being written\n")
+        d = until(s, "reload-broken", lambda st: "can't be opened" in st["toast"])
+        check("a file that can't be read yet leaves the model on screen", "can't be opened" in d["toast"] and d["tris"] == c["tris"] and d["error"] == "" and d["reloads"] == "1", d["toast"])
+        shutil.copy(S("plate-holes.stl"), part)
+        e = until(s, "reload-again", lambda st: st["reloads"] == "2")
+        check("and it reloads once the file is whole again", e["reloads"] == "2" and e["tris"] == a["tris"], "%s triangles" % e["tris"])
+    finally:
+        code = s.close()
+    check("reload session exits cleanly", code == 0)
+
+
 def main():
     exe, samples, out = (os.path.abspath(a) for a in sys.argv[1:4])
     os.makedirs(out, exist_ok=True)
@@ -1219,6 +1416,7 @@ def main():
     fraction_and_option_tests(exe, S, env, out)
     mesh_format_tests(exe, S, env, out)
     update_indicator_tests(exe, S, env, out)
+    details_and_reload_tests(exe, S, env, out)
 
     failed = [r for r in results if not r[1]]
     print("\n%d checks, %d failed" % (len(results), len(failed)))

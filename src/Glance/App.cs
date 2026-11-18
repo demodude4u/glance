@@ -271,9 +271,11 @@ internal static unsafe partial class App
 
     // ───────────────────────── Loading ─────────────────────────
 
-    static void StartLoad(string path, long startedAt = 0)
+    /// <param name="keepView">A reload of the open file: the view, section cut and shading stay as they are.</param>
+    static void StartLoad(string path, long startedAt = 0, bool keepView = false)
     {
         int gen = ++_loadGen;
+        _keepGen = keepView ? gen : -1;
         _loading = true; _loadName = Path.GetFileName(path); _loadStage = "";
         _loadStart = startedAt != 0 ? startedAt : Stopwatch.GetTimestamp();
         _error = null; _path = path;
@@ -281,39 +283,64 @@ internal static unsafe partial class App
         Invalidate();
         new Thread(() =>
         {
+            Watched seen = Baseline(path);
             try
             {
                 if (!File.Exists(path)) throw new FileNotFoundException("That file isn't there any more.");
                 Mesh m = Loaders.Load(path,
                     s => Post(() => { if (gen == _loadGen) { _loadStage = s; Invalidate(); } }),
                     () => gen != _loadGen);
-                Post(() => OnLoaded(gen, m, null));
+                Post(() => OnLoaded(gen, m, null, seen));
             }
             catch (OperationCanceledException) { }
-            catch (OutOfMemoryException) { Post(() => OnLoaded(gen, null, "This model is too large to fit in memory.")); }
-            catch (Exception ex) { Post(() => OnLoaded(gen, null, ex.Message)); }
+            catch (OutOfMemoryException) { Post(() => OnLoaded(gen, null, "This model is too large to fit in memory.", seen)); }
+            catch (Exception ex) { Post(() => OnLoaded(gen, null, ex.Message, seen)); }
         }) { IsBackground = true, Name = "load" }.Start();
     }
 
-    static void OnLoaded(int gen, Mesh? m, string? error)
+    static void OnLoaded(int gen, Mesh? m, string? error, Watched? seen = null)
     {
         if (gen != _loadGen) return;
         _loading = false;
+        if (seen != null) _watch = seen;        // from here on, a change to the file on disk reloads it
+        Mesh? old = _mesh;
+        bool reload = gen == _keepGen && old != null;
         if (m == null)
         {
+            if (reload)
+            {
+                // Caught half-written, or saved broken: what is on screen stays until the file can be read again.
+                Toast("The file changed, but the new version can't be opened yet", 4f);
+                UpdateTitle(); Invalidate();
+                return;
+            }
             _mesh = null; R.Clear(); _error = error ?? "Something went wrong."; _info = false;
+            DropFacts();
             UpdateTitle(); Invalidate();
             return;
         }
         _mesh = m; _error = null;
+        DropFacts();
         R.Upload(m);
-        _orient = _orientNow = m.YUp ? YUp : Matrix4x4.Identity; _orientT = 1; _layFlat = false;
-        _fileColors = true; _spin = false; _velYaw = _velPitch = 0;
-        ClearMeasure(); _section = 0; _sectionPos = 0.5f; _sectionFlip = false;
+        bool keep = reload && old!.YUp == m.YUp;
+        float radius0 = _radius; Vector3 center0 = _center;
+        _layFlat = false; _velYaw = _velPitch = 0;
+        ClearMeasure();
+        if (!keep)
+        {
+            _orient = _orientNow = m.YUp ? YUp : Matrix4x4.Identity; _orientT = 1;
+            _fileColors = true; _spin = false;
+            _section = 0; _sectionPos = 0.5f; _sectionFlip = false;
+        }
         UpdateBounds();
-        _goal = FitCam(IsoYaw, IsoPitch);
-        _cur = _goal;
-        if (_snapshot == null) { _cur.Dist *= 1.22f; _cur.Yaw -= 0.42f; _cur.Pitch -= 0.10f; }   // a short settle-in
+        // A reload keeps the camera unless the part is now a very different size or somewhere else altogether.
+        bool sameView = keep && _radius > radius0 * 0.5f && _radius < radius0 * 2f && (_center - center0).Length() < radius0;
+        if (!sameView)
+        {
+            _goal = keep ? FitCam(_goal.Yaw, _goal.Pitch) : FitCam(IsoYaw, IsoPitch);
+            _cur = _goal;
+            if (_snapshot == null && !keep) { _cur.Dist *= 1.22f; _cur.Yaw -= 0.42f; _cur.Pitch -= 0.10f; }   // a short settle-in
+        }
         _loadMs = Seconds(_loadStart) * 1000;
         _stampLoad = true;
         UpdateTitle(); Invalidate();
@@ -331,6 +358,14 @@ internal static unsafe partial class App
             if (_snapshot == null && Environment.GetEnvironmentVariable("GLANCE_NO_LOOKAHEAD") == null)
                 Loaders.WarmFolder(opened, () => _mesh != m || _quit);
         }) { IsBackground = true, Priority = ThreadPriority.BelowNormal, Name = "analysis" }.Start();
+
+        if (reload)
+        {
+            _reloads++;
+            Toast("Reloaded  ·  the file changed on disk", 2.2f);
+            _unitNote = true;
+            return;
+        }
 
         if (m.UnitChoice && m.UnitSource == 1 && m.FileUnit != "mm" && _unitNote && _snapshot == null)
             Toast($"This file doesn't state its units: reading it as {Loaders.UnitLabel(m.FileUnit)}  ·  Fix units to change", 5f);
@@ -565,7 +600,7 @@ internal static unsafe partial class App
         if (_tFirst == 0)
         {
             _tFirst = Seconds(T0) * 1000;
-            if (_snapshot == null) Updater.Start();        // only after the first picture is on screen
+            if (_snapshot == null) { Updater.Start(); StartWatcher(); }     // only after the first picture is on screen
             if (GL.SwapInterval != null) GL.SwapInterval(1);
         }
         if (_pendingShot >= 0) TestShot();
@@ -744,7 +779,7 @@ internal static unsafe partial class App
         if (!ready) { _settle = 0; if (Seconds(T0) > 180) { Environment.ExitCode = 4; _quit = true; } return; }
         _settle++;
         if (_settle == 2 && _press.Length > 0) { foreach (char c in _press) OnKey(char.ToUpperInvariant(c), false); _cur = _goal; _spin = false; }
-        if (_settle < 5) return;
+        if (_settle < 5 || FactsWaiting) return;         // an open Details card is pictured with its numbers in
         _cur = _goal;
         Render(hud: true);
         byte[] px = ReadPixels();
@@ -777,7 +812,7 @@ internal static unsafe partial class App
         string? dir = Environment.GetEnvironmentVariable("GLANCE_TEST_DIR");
         if (dir == null) { _pendingShot = -1; return; }
         bool camStill = _orientT >= 1 && _cur.Yaw == _goal.Yaw && _cur.Pitch == _goal.Pitch && _cur.Dist == _goal.Dist && _cur.Target == _goal.Target;
-        bool settled = !_loading && (_spin || (camStill && MathF.Abs(_velYaw) + MathF.Abs(_velPitch) == 0)) && (_mesh == null || _mesh.Analyzed) && _posted.IsEmpty;
+        bool settled = !_loading && (_spin || (camStill && MathF.Abs(_velYaw) + MathF.Abs(_velPitch) == 0)) && (_mesh == null || _mesh.Analyzed) && _posted.IsEmpty && !FactsWaiting;
         if (!settled) { Invalidate(); return; }
         int n = _pendingShot; _pendingShot = -1;
         Render(hud: true);
@@ -797,6 +832,7 @@ internal static unsafe partial class App
             $"sliderBox={_sliderBox.X:0},{_sliderBox.Y:0},{_sliderBox.W:0},{_sliderBox.H:0}", $"toastY={_toastY:0}", $"toolbarRight={_toolbarRight:0}", $"fixUnits={_fixUnits}", $"unitRows={string.Join(";", _unitRows.Select(r => $"{r.X + r.W / 2:0},{r.Y + r.H / 2:0}"))}", $"fileUnit={m?.FileUnit}", $"format={m?.Format}", $"unitSource={m?.UnitSource}", $"unitDoubt={m?.UnitDoubt}", $"dims={(m != null ? $"{m.Max.X - m.Min.X:0.000},{m.Max.Y - m.Min.Y:0.000},{m.Max.Z - m.Min.Z:0.000}" : "")}", $"measure={_measure}", $"hover={_hover?.Kind}", $"selA={_selA?.Kind}", $"selB={_selB?.Kind}",
             $"result={(_result != null ? _result.Title + "|" + _result.Value.ToString("0.0000") : _selA != null ? Single(_selA) : "")}",
             $"section={_section}", $"sectionPos={_sectionPos:0.000}", $"inch={_inch}", $"box={_box}", $"watertight={m?.Closed}",
-            $"ppu={_h / (2 * _cur.Dist * MathF.Tan(Fov / 2)):0.00000}", $"regions={m?.Regions.Count ?? 0}", $"chains={(m?.ChainClosed?.Length ?? 0)}", $"loadMs={_loadMs:0.0}", $"cache={m?.FromCache}", $"size={_w}x{_h}", $"scale={_scale}", $"fonts={(U.Body.Name + "/" + U.Medium.Name + "/" + U.Title.Name).Replace(' ', '_')}", $"fontsLoaded={BundledFonts.Loaded}", $"version={AppVersion.Full.Replace(' ', '_')}", $"buttons={string.Join(";", _buttons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}"));
+            $"ppu={_h / (2 * _cur.Dist * MathF.Tan(Fov / 2)):0.00000}", $"regions={m?.Regions.Count ?? 0}", $"chains={(m?.ChainClosed?.Length ?? 0)}", $"loadMs={_loadMs:0.0}", $"cache={m?.FromCache}", $"size={_w}x{_h}", $"scale={_scale}", $"fonts={(U.Body.Name + "/" + U.Medium.Name + "/" + U.Title.Name).Replace(' ', '_')}", $"fontsLoaded={BundledFonts.Loaded}", $"version={AppVersion.Full.Replace(' ', '_')}", $"buttons={string.Join(";", _buttons.Select(b => $"{b.Action}:{b.X + b.W / 2:0},{b.Y + b.H / 2:0}"))}",
+            string.Join('\n', FactsState())));
     }
 }

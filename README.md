@@ -35,12 +35,32 @@ and it is on screen before you have let go of the mouse.
 | L | Lay flat: click a face and the model turns to rest on it (Z puts it back) |
 | U | Show millimeters, inches, or inches as fractions (also the toolbar button) |
 | Shift+U | STL, OBJ and PLY, and a glTF that looks too large: Fix units, choose what unit the file's numbers are in |
-| I | Details: size, triangles, surface area, volume, watertight |
+| I | Details: size, stock size, surface area, volume, weight, holes, watertight (see below) |
 | ← → | Previous / next model in the folder |
 | R | Turntable |
 | O, drag-and-drop | Open a file |
 | Ctrl+C | Copy a picture of the model |
+| Ctrl+Shift+C | Copy the measurement on screen as text, or the part's size when there is none |
 | Esc | Close |
+
+Save the file again from your CAD program and the open window shows the new version, with the view, the section
+cut and the shading where they were. If the file is caught half-written, the model on screen stays until it can
+be read. To switch this off, add `autoReload=0` to `%LOCALAPPDATA%\Glance\settings.ini`.
+
+### Details
+
+Press **I** for the facts about the part. Beyond the file's size and triangle count:
+
+| Row | What it tells you |
+|---|---|
+| Stock size | The smallest box the part fits in when it may be turned: what to cut it from. Glance tries the box resting on each of the part's larger flat faces and turns it to its smallest; point at the row to see the box on the model. |
+| Material, Weight | Click **Material** and pick what the part is made of (twelve common metals and plastics, or type a density) to see what it weighs. The choice is remembered. The weight needs a watertight model, as the volume does. |
+| Holes | Every round hole, grouped by diameter: `4 ×  Ø 6.60 mm`, with the depth where all of that size are equally deep. Point at a row and those holes are ringed on the model. A hole saved as two half-cylinders counts as one; slots and fillets are not holes. |
+
+Click any value to copy it as text. Clicking the file name at the top copies the whole card, one line per row
+with a tab between label and value, ready to paste into an email or a spreadsheet; clicking **Holes** copies the
+hole list. The size at the bottom left of the window and the measurement card copy the same way.
+Stock size and holes are worked out the first time the card is opened, not when the model is.
 
 ### Measuring
 

@@ -14,6 +14,9 @@ internal static class Settings
     public static string PictureSize = "fullhd";   // window | hd | fullhd | qhd | 4k | square (see App.PictureSizes)
     public static bool AutoUpdate = true;    // "autoUpdate=0" stops Glance fetching new versions
     public static bool PictureAlpha;         // saved pictures have a transparent background
+    public static bool AutoReload = true;    // "autoReload=0" stops Glance reloading a model when its file changes
+    public static string WeightMaterial = "";      // what the part is made of, for its weight: a key from App.WeightMaterials, "custom", or none
+    public static double Density;            // g/cm³, for the custom material
 
     /// <summary>Choices that belong to one shading mode, such as "studio.light=1". Empty until one is made.</summary>
     public static Dictionary<string, int>? Options;
@@ -50,6 +53,9 @@ internal static class Settings
                     case "pictureSize": PictureSize = v; break;
                     case "autoUpdate": AutoUpdate = v != "0"; break;
                     case "pictureAlpha": PictureAlpha = v == "1"; break;
+                    case "autoReload": AutoReload = v != "0"; break;
+                    case "weightMaterial": WeightMaterial = v; break;
+                    case "density": double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out Density); break;
                     case "material": int.TryParse(v, NumberStyles.Integer, null, out Material); break;
                     default: if (k.Contains('.') && int.TryParse(v, NumberStyles.Integer, null, out int o)) SetOption(k, o); break;
                 }
@@ -69,6 +75,7 @@ internal static class Settings
                 $"edges={(Edges ? 1 : 0)}", $"grid={(Grid ? 1 : 0)}", $"ortho={(Ortho ? 1 : 0)}",
                 $"seenHint={(SeenHint ? 1 : 0)}", $"units={(Units == 1 ? "in" : Units == 2 ? "frac" : "mm")}", $"theme={Theme}", $"material={Material}",
                 $"autoUpdate={(AutoUpdate ? 1 : 0)}", $"pictureSize={PictureSize}", $"pictureAlpha={(PictureAlpha ? 1 : 0)}",
+                $"autoReload={(AutoReload ? 1 : 0)}", $"weightMaterial={WeightMaterial}", $"density={Density.ToString("0.####", CultureInfo.InvariantCulture)}",
             };
             if (Options != null) foreach (var (k, v) in Options) lines.Add($"{k}={v}");
             System.IO.File.WriteAllLines(File, lines);

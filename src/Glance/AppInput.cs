@@ -80,6 +80,10 @@ internal static unsafe partial class App
                 if (Environment.GetEnvironmentVariable("GLANCE_TEST_DIR") != null) { ToggleFixUnits(); Invalidate(); }   // test hook for Shift+U
                 return true;
 
+            case WM_APP + 7:        // test hook for Ctrl+Shift+C
+                if (Environment.GetEnvironmentVariable("GLANCE_TEST_DIR") != null) { CopyNumbers(); Invalidate(); }
+                return true;
+
             case WM_APP + 2:
                 _pendingShot = (int)wp; Invalidate();
                 return true;
@@ -113,6 +117,7 @@ internal static unsafe partial class App
             case WM_MOUSEMOVE:
                 _mouseX = mx; _mouseY = my;
                 if (OverUpdate(mx, my) != _updHot) { _updHot = !_updHot; Invalidate(); }
+                if (FactsHover(mx, my)) Invalidate();
                 if (_drag == 3) { DragSlider(mx); return true; }
                 if (_drag != 0 && _mesh != null) Drag(mx, my);
                 else if (_mesh != null && (_measure || _layFlat || _fixUnits || _picture || my < MathF.Max(64 * _scale, _optBottom + 16 * _scale) || _hotButton >= 0)) { _hoverDirty = _measure || _layFlat; Invalidate(); }
@@ -217,12 +222,14 @@ internal static unsafe partial class App
     static void OnKey(int vk, bool ctrl)
     {
         if (vk >= 0x60 && vk <= 0x69) vk = 0x30 + (vk - 0x60);      // numpad digits
+        if (_weightPick && WeightKey(vk)) { Invalidate(); return; }
         switch (vk)
         {
             case 0x1B:
                 if (_help) _help = false;
                 else if (_picture) _picture = false;
                 else if (_fixUnits) _fixUnits = false;
+                else if (_weightPick) _weightPick = false;
                 else if (_layFlat) { _layFlat = false; _hover = null; }
                 else if (_measure && (_selA != null || _selB != null)) ClearMeasure();
                 else if (_measure) { _measure = false; ClearMeasure(); }
@@ -280,6 +287,7 @@ internal static unsafe partial class App
                 ApplyChrome();
                 break;
             case 'C':
+                if (ctrl && KeyDown(VK_SHIFT)) { CopyNumbers(); break; }
                 if (ctrl) { CopyImage(); break; }
                 if (_mesh == null) break;
                 StepColor();

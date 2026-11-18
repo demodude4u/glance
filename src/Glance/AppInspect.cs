@@ -317,6 +317,7 @@ internal static unsafe partial class App
         if (UpdateClick(mx, my)) return true;
         if (_mesh == null) return false;
         if (_picture) return PictureClick(mx, my);
+        if (_weightPick) return WeightClick(mx, my);
         if (_fixUnits)                      // the chooser is modal: a row picks, anywhere else closes
         {
             for (int i = 0; i < _unitRows.Count; i++)
@@ -354,7 +355,7 @@ internal static unsafe partial class App
             DragSlider(mx);
             return true;
         }
-        return false;
+        return FactsClick(mx, my);
     }
 
     static void DragSlider(int mx)
@@ -544,6 +545,7 @@ internal static unsafe partial class App
         float x = (_w - w) / 2, y = _h - m - h;
         if (x < _pillRight + 12 * s || x + w > _updLeft - 12 * s) y -= 44 * s;         // keep clear of the size read-out and the update indicator
         Card(x, y, w, h, s);
+        _measureRect = (x, y, w, h);                 // a click on the card copies the number
         float ty = y + pad * 0.75f;
         U.TextCentered(U.Body, Fit(U.Body, title, w - pad), x + w / 2, ty, _theme.Dim); ty += U.Body.Height + 3 * s;
         U.TextCentered(big, Fit(big, main, w - pad), x + w / 2, ty, _theme.Text); ty += big.Height + 3 * s;

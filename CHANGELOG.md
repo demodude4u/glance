@@ -2,6 +2,25 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
+## Unreleased
+
+- **Reload when the file changes.** Save the file again from your CAD program and the open window shows the new
+  version, keeping the view, the section cut and the shading. A file caught half-written leaves the model on
+  screen until it can be read. `autoReload=0` in `settings.ini` switches it off.
+- **Weight.** In Details, click **Material** and pick what the part is made of (twelve common metals and
+  plastics, or type a density) to see what it weighs, in grams and kilograms or in pounds. The choice is
+  remembered.
+- **Hole list.** Details lists every round hole grouped by diameter, such as `4 ×  Ø 6.60 mm`, with the depth
+  where all of that size are equally deep. Point at a row and those holes are ringed on the model. A hole saved
+  as two half-cylinders counts as one.
+- **Stock size.** Details shows the smallest box the part fits in when it may be turned, so a part saved at an
+  angle still gets the size of the stock to cut it from. Point at the row to see the box.
+- **Copy the numbers.** Click any value in Details to copy it as text; click the file name to copy the whole
+  card, or **Holes** for the hole list. The size at the bottom left and the measurement card copy the same way,
+  and **Ctrl+Shift+C** copies the measurement on screen or the size.
+- Details names the upright dimension of a Y-up file (OBJ, glTF) Height, where it used to say Depth.
+- Stock size and holes are worked out the first time Details is opened; opening a model is as fast as before.
+
 ## 1.6.0 (2026-11-18)
 
 - **3MF files.** Glance opens `.3mf`: the mesh objects, placed by components and by the build's items with their
