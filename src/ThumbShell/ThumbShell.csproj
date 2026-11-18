@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- GlanceThumbs.dll: the thumbnail handler Explorer loads (into its own helper process, never into Explorer
+       itself). A native DLL with two exports, DllGetClassObject and DllCanUnloadNow. It reads no model files:
+       it hands each one to glance-thumb.exe (src\Thumb) and waits. -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <NativeLib>Shared</NativeLib>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AssemblyName>GlanceThumbs</AssemblyName>
+    <RootNamespace>Glance</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Product>Glance</Product>
+    <Description>Glance thumbnails for File Explorer</Description>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <PublishAot>true</PublishAot>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\ThumbTypes.cs" Link="Shared\ThumbTypes.cs" />
+  </ItemGroup>
+
+</Project>

@@ -48,7 +48,7 @@ internal static unsafe partial class Loaders
 
     static Mesh ReadPly(string path)
     {
-        byte[] d = File.ReadAllBytes(path);
+        byte[] d = ReadFile(path);
         int h = d.Length >= 3 && d[0] == 'p' && d[1] == 'l' && d[2] == 'y' ? d.AsSpan().IndexOf("end_header"u8) : -1;
         if (h < 0) throw new InvalidDataException("This doesn't look like a PLY file.");
         int p = h + 10;

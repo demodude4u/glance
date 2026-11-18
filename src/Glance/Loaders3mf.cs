@@ -59,7 +59,7 @@ internal static unsafe partial class Loaders
 
     static Mesh Read3mf(string path)
     {
-        var zip = new Zip(File.ReadAllBytes(path));
+        var zip = new Zip(ReadFile(path));
         var pack = new Package3mf { Zip = zip };
 
         // The package says where its model is; nearly always 3D/3dmodel.model.

@@ -72,9 +72,9 @@ def main():
         s.desk.close()
         return code
 
-    print("== install the starting copy (right-click entry switched off) ==")
-    check("starting copy installs", S.run(setup, ["--quiet", "--no-menu"], env, 120) == 0 and os.path.exists(exe))
-    check("its choices are as given", S.reg(C + ".stl") == "Glance.Model.stl" and S.reg(menu_key) is None)
+    print("== install the starting copy (right-click entry and thumbnails switched off) ==")
+    check("starting copy installs", S.run(setup, ["--quiet", "--no-menu", "--no-thumbnails"], env, 120) == 0 and os.path.exists(exe))
+    check("its choices are as given", S.reg(C + ".stl") == "Glance.Model.stl" and S.reg(menu_key) is None and S.thumbs_gone())
 
     print("== 1: the published version is the one already installed ==")
     fresh(); publish(current, good)
@@ -110,11 +110,13 @@ def main():
     check("closing Glance installs the update", code == 0 and os.path.exists(marker) and os.path.exists(exe),
           "exit %s; log: %s" % (code, " | ".join(open(log).read().split()) if os.path.exists(log) else "none"))
     check("the update keeps the choices made at install", S.reg(C + ".stl") == "Glance.Model.stl" and S.reg(menu_key) is None, "menu entry: %s" % S.reg(menu_key))
+    check("thumbnails that were switched off stay off", S.thumbs_gone() and S.reg("Software\\Glance", "Thumbnails") == 0, "Thumbnails=%s" % S.reg("Software\\Glance", "Thumbnails"))
     bmp = os.path.join(out, "after-update.bmp")
     code = S.run(exe, [sample, "--snapshot", bmp], env)
     check("the updated Glance opens a model", code == 0 and os.path.exists(bmp + ".txt") and "tris=" in open(bmp + ".txt").read())
 
     print("== 4: a second Glance window is still open ==")
+    S.delete_value("Software\\Glance", "Thumbnails")         # as left by a Glance from before thumbnails: the question was never asked
     fresh(); publish("9.9.9", good)
     a = session()
     wait_for(lambda: os.path.exists(os.path.join(upd, "ready.txt")), 40)
@@ -128,6 +130,7 @@ def main():
     a.desk.close()
     code = close(b, linger=lambda: os.path.exists(marker))
     check("and goes in once the last window is closed", os.path.exists(marker))
+    check("a copy from before thumbnails existed gets them with the update", S.thumbs_registered(inst), "handler for .stl: %s" % S.reg(C + ".stl" + S.HANDLER))
 
     print("== 5: pressing Update ==")
     fresh(); publish("9.9.9", good)
@@ -145,6 +148,7 @@ def main():
     time.sleep(1.5)
     titles = reopened()
     check("then Glance comes back on the same file", back and any(os.path.basename(sample) in t for t in titles), str(titles))
+    check("thumbnails that were on stay on", S.thumbs_registered(inst))
     s.desk.close()
     time.sleep(1.0)
 

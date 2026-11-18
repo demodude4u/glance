@@ -32,6 +32,8 @@
   <ItemGroup>
     <Compile Include="..\Shared\BundledFonts.cs" Link="BundledFonts.cs" />
     <Compile Include="..\Shared\AppVersion.cs" Link="AppVersion.cs" />
+    <Compile Include="..\Shared\ThumbTypes.cs" Link="ThumbTypes.cs" />
+    <Compile Include="..\Shared\ThumbFiles.cs" Link="ThumbFiles.cs" />
     <EmbeddedResource Include="..\Glance\fonts\GlanceRoboto-Regular.ttf" LogicalName="GlanceRoboto-Regular.ttf" />
     <EmbeddedResource Include="..\Glance\fonts\GlanceRoboto-Medium.ttf" LogicalName="GlanceRoboto-Medium.ttf" />
     <EmbeddedResource Include="..\Glance\fonts\GlanceRoboto-Light.ttf" LogicalName="GlanceRoboto-Light.ttf" />
