@@ -34,7 +34,7 @@ and it is on screen before you have let go of the mouse.
 | B | Bounding-box dimensions on the model |
 | L | Lay flat: click a face and the model turns to rest on it (Z puts it back) |
 | U | Show millimeters, inches, or inches as fractions (also the toolbar button) |
-| Shift+U | STL, OBJ and PLY only: Fix units, choose what unit the file's numbers are in |
+| Shift+U | STL, OBJ and PLY, and a glTF that looks too large: Fix units, choose what unit the file's numbers are in |
 | I | Details: size, triangles, surface area, volume, watertight |
 | ← → | Previous / next model in the folder |
 | R | Turntable |
@@ -120,6 +120,10 @@ guess: a part whose largest dimension is under 6 is read as inches, anything els
 changed the size rings the **Fix units** button on the toolbar. Click it (or press **Shift+U**) to see how big the
 part would be in millimeters, inches, centimeters, meters and feet, and pick the one that looks right; the choice is
 remembered for that file.
+
+glTF has one exception. Some CAD exporters write millimeters into a glTF file unchanged, which makes the part a
+thousand times too large. A glTF model more than 10 m across gets the **Fix units** button too, ringed, with a
+short note; pick the right unit and it is remembered for that file like any other.
 
 Lengths are shown in millimeters, decimal inches, or inch fractions: the units button (or **U**) steps through
 the three. With fractions on, a length is written as a fraction only when it really is one: within 0.0005 in of

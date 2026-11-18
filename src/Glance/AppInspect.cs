@@ -142,7 +142,7 @@ internal static unsafe partial class App
         _hoverDirty = _measure;
     }
 
-    /// <summary>STL, OBJ and PLY only: read the file's numbers as the next unit (mm, in, cm, m, ft) and remember it for this file.</summary>
+    /// <summary>STL, OBJ, PLY and a glTF whose size is in doubt: read the file's numbers as the next unit (mm, in, cm, m, ft) and remember it for this file.</summary>
     static void CycleFileUnit()
     {
         if (_mesh == null || _path == null) return;
@@ -189,9 +189,12 @@ internal static unsafe partial class App
         Vector3 raw = (mesh.Max - mesh.Min) / Loaders.UnitToMm(mesh.FileUnit);      // the numbers as written in the file
         string Num(float v) => v.ToString(MathF.Abs(v) >= 1000 ? "#,0" : MathF.Abs(v) >= 10 ? "0.##" : "0.###");
         string title = "What units is this file in?";
-        string line1 = $"{mesh.Format} files only store numbers. This one measures {Num(raw.X)} × {Num(raw.Y)} × {Num(raw.Z)}.";
+        bool gltf = mesh.Format is "GLB" or "glTF";         // meant to be in meters, but not always saved that way
+        string line1 = (gltf ? $"{mesh.Format} files should be in meters, but some are saved in other units." : $"{mesh.Format} files only store numbers.")
+            + $" This one measures {Num(raw.X)} × {Num(raw.Y)} × {Num(raw.Z)}.";
         string line2 = mesh.UnitSource switch
         {
+            0 when gltf => "Glance read it as meters. Pick the size that looks right.",
             0 => $"The file says {Loaders.UnitLabel(mesh.FileUnit)}. Pick the size that looks right.",
             2 => $"You chose {Loaders.UnitLabel(mesh.FileUnit)}. Pick the size that looks right.",
             _ => $"Glance guessed {Loaders.UnitLabel(mesh.FileUnit)}. Pick the size that looks right.",
@@ -405,7 +408,7 @@ internal static unsafe partial class App
         // Files without trustworthy units get one more button: what the file's numbers are being read as.
         if (_mesh!.UnitChoice)
         {
-            bool guess = _mesh.UnitSource == 1 && _mesh.FileUnit != "mm";      // only flag a guess that changed the size
+            bool guess = _mesh.UnitSource == 1 && _mesh.FileUnit != "mm" || _mesh.UnitDoubt;      // only flag a guess that changed the size, or a size in doubt
             string label = "Fix units";
             float w = U.Measure(U.Medium, label) + pad * 2;
             Wrap(w, gap * 2);                                                    // set a little apart from the rest

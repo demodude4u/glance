@@ -1036,6 +1036,41 @@ def mesh_format_tests(exe, S, env, out):
     finally:
         s.close()
 
+    # A glTF saved in millimeters by a CAD exporter: read as meters it is 110 m long, so Fix units is offered.
+    odd = os.path.join(out, "gltf-units")
+    shutil.rmtree(odd, ignore_errors=True)
+    os.makedirs(odd)
+    shutil.copy(S("two-blocks.bin"), os.path.join(odd, "two-blocks.bin"))
+    huge = dict(gltf, nodes=gltf["nodes"] + [{"scale": [1000, 1000, 1000], "children": [0, 1]}], scenes=[{"nodes": [len(gltf["nodes"])]}])
+    with open(os.path.join(odd, "saved-in-mm.gltf"), "w") as fh_:
+        json.dump(huge, fh_)
+    has_fix = lambda st: "5" in dict(b.split(":") for b in st["buttons"].split(";") if b)
+    near = lambda st, want, tol: all(abs(float(d) - e) < tol for d, e in zip(st["dims"].split(","), want))
+    s = Session(exe, os.path.join(odd, "saved-in-mm.gltf"), dark, out)
+    try:
+        a = s.shot("gltf-too-large")
+        check("a glTF over 10 m across is read as meters but offers Fix units", has_fix(a) and a["unitDoubt"] == "True" and a["fileUnit"] == "m"
+              and a["unitSource"] == "0" and near(a, (110000, 20000, 30000), 0.5), "%s, %s mm, buttons %s" % (a["fileUnit"], a["dims"], a["buttons"]))
+        check("and a note says why", "too large" in a["toast"], a["toast"])
+        s.post(0x8000 + 4)
+        b = s.shot("gltf-fix-units")
+        rows = [tuple(float(v) for v in r.split(",")) for r in b["unitRows"].split(";") if r]
+        check("its chooser opens with five units", b["fixUnits"] == "True" and len(rows) == 5, b["unitRows"])
+        s.post_many([(WM_LBUTTONDOWN, 1, s.xy(*rows[0])), (WM_LBUTTONUP, 0, s.xy(*rows[0]))], gap=0.03)
+        c = s.shot("gltf-picked-mm")
+        check("picking millimeters brings it to its true size", c["fileUnit"] == "mm" and c["unitSource"] == "2" and c["unitDoubt"] == "False"
+              and near(c, (110, 20, 30), 0.01), "now %s, %s mm" % (c["fileUnit"], c["dims"]))
+        check("and Fix units stays, to change it back", has_fix(c), c["buttons"])
+    finally:
+        s.close()
+    s = Session(exe, os.path.join(odd, "saved-in-mm.gltf"), dark, out)
+    try:
+        a = s.shot("gltf-remembered")
+        check("the unit chosen for a glTF is remembered", a["fileUnit"] == "mm" and a["unitSource"] == "2" and near(a, (110, 20, 30), 0.01),
+              "%s, %s mm" % (a["fileUnit"], a["dims"]))
+    finally:
+        s.close()
+
     s = Session(exe, S("assembly.3mf"), dark, out)
     try:
         a = s.shot("3mf")

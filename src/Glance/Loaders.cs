@@ -39,6 +39,7 @@ internal static unsafe partial class Loaders
         m.FileSize = new FileInfo(path).Length;
         m.ComputeBounds();
         if (ext is ".stl" or ".obj" or ".ply") ApplyUnits(m, path);
+        else if (ext is ".glb" or ".gltf") GltfUnits(m, path);
         m.ParseMs = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
         return m;
     }
@@ -129,6 +130,30 @@ internal static unsafe partial class Loaders
         else { m.FileUnit = largest > 0 && largest < 6 ? "in" : "mm"; m.UnitSource = 1; }
 
         float k = UnitToMm(m.FileUnit);
+        if (k == 1f) return;
+        float[] p = m.Pos;
+        for (int i = 0; i < p.Length; i++) p[i] *= k;
+        m.Min *= k; m.Max *= k;
+    }
+
+    /// <summary>A glTF model larger than this is more likely saved in the wrong unit than really that big.</summary>
+    const float GltfDoubtMm = 10_000f;
+
+    /// <summary>
+    /// glTF is in meters by its standard, and the reader has already brought the model to millimeters on that basis.
+    /// CAD exporters often write millimeters into it unchanged, though, which makes a part a thousand times too large.
+    /// So a model over 10 m, or one whose unit the user has already chosen, may have its unit changed like an STL.
+    /// </summary>
+    static void GltfUnits(Mesh m, string path)
+    {
+        Vector3 size = m.Max - m.Min;
+        string? chosen = UnitOverride(path);
+        m.UnitDoubt = chosen == null && MathF.Max(size.X, MathF.Max(size.Y, size.Z)) > GltfDoubtMm;
+        m.UnitChoice = chosen != null || m.UnitDoubt;
+        if (chosen == null) return;
+
+        m.FileUnit = chosen; m.UnitSource = 2;
+        float k = UnitToMm(chosen) / 1000f;
         if (k == 1f) return;
         float[] p = m.Pos;
         for (int i = 0; i < p.Length; i++) p[i] *= k;

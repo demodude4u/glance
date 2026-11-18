@@ -2,7 +2,7 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
-## 1.6.0 (not yet released)
+## 1.6.0 (2026-11-18)
 
 - **3MF files.** Glance opens `.3mf`: the mesh objects, placed by components and by the build's items with their
   transforms, so a file of several parts comes in with each part where it belongs. Objects kept in other model
@@ -15,7 +15,9 @@ The version number lives in `src\Directory.Build.props`. Each release is tagged 
   indices, normals, the material's base colour and vertex colours; the data may be in the file, in `.bin` files
   beside it or embedded in the text. glTF is in meters with Y up, so the model comes in at its true size in
   millimeters and standing the right way up. Textures, skins and animation are not read. A file packed with Draco
-  or meshopt compression is refused with a message saying so.
+  or meshopt compression is refused with a message saying so. Some CAD exporters write millimeters into a glTF
+  unchanged, which makes the part a thousand times too large: a glTF model more than 10 m across gets the
+  **Fix units** button, ringed, with a short note, and the unit picked is remembered for that file.
 - The three formats are everywhere the others are: double-click (the installer registers `.3mf`, `.ply`, `.glb`
   and `.gltf`), right-click **Open in Glance**, drag and drop, **O**, and the arrow keys through a folder. A file
   that is damaged or cut short shows a message instead of a model.

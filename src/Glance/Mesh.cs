@@ -14,7 +14,8 @@ internal sealed class Mesh
     public string Format = "", Units = "";
     public string FileUnit = "mm";      // what one unit in the file means: mm, cm, m, in or ft. Positions are stored in mm.
     public int UnitSource;              // 0 = stated by the file, 1 = assumed, 2 = chosen by the user
-    public bool UnitChoice;             // STL, OBJ and PLY carry no reliable units, so the user may override them
+    public bool UnitChoice;             // STL, OBJ and PLY carry no reliable units, so the user may override them; so may a glTF in doubt
+    public bool UnitDoubt;              // glTF only: read as meters, as the standard says, but far too large for that to be right
     public bool YUp, FromCache;
     public long FileSize;
 
