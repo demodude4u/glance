@@ -12,6 +12,8 @@ and it is on screen before you have let go of the mouse.
   an edge for its length. Section cut, bounding-box dimensions, mm / inch / inch fractions, area, volume and a
   watertight check.
 - **Simple.** One window, four buttons. Press **F1** for the handful of keys.
+- **Pictures in File Explorer.** In Explorer's icon views each model shows as a small picture of itself instead of
+  a plain icon.
 
 ## Using it
 
@@ -131,14 +133,46 @@ a 64th, reduced, such as 1 3/8", 5/16" or 2". Anything else stays decimal (5.896
 means the part is that size. This applies to the size read-out, bounding-box dimensions, measurements and the
 details card; areas, volumes and angles are unchanged.
 
+### Thumbnails in File Explorer
+
+With **Show pictures of models in File Explorer** ticked at install (it is, unless you clear it), Explorer's icon
+views show every STL, OBJ, 3MF, PLY, glTF, STEP and IGES file as a picture of the model: the view Glance opens
+with, in the default material or the file's own colours, with nothing behind it. It is for the current user only
+and needs no administrator rights.
+
+What to expect:
+
+- **STEP and IGES take a moment the first time.** They have to be converted, a file at a time, in the background
+  and at low priority; Explorer shows the ordinary icon until each picture arrives. The conversion is the same one
+  Glance makes and is kept in the same cache, so a file whose picture has appeared opens at once in Glance, and a
+  file Glance has opened gets its picture at once. A conversion gets 15 seconds; a file that needs longer keeps its
+  icon, and gets its picture once it has been opened in Glance.
+- **Some files keep their icon.** A `.gltf` whose data is in a separate `.bin` (Windows hands a thumbnail handler
+  the file's bytes but not its location, so the `.bin` cannot be found; a `.glb`, or a `.gltf` with everything
+  inside it, is fine). Files over 192 MB (64 MB for 3MF, 40 MB for STEP and IGES). Anything damaged, and anything
+  Glance itself cannot open. For the same reason an `.obj` is drawn without the colours from its `.mtl`.
+- **A part that is black all over** in its file (common in IGES) is drawn in the default material, since a black
+  shape would show nothing.
+- **Windows keeps the pictures it has**, so a changed file gets a new one, but a new Glance does not redraw old
+  ones. Disk Cleanup > Thumbnails clears them all.
+
+Nothing of this runs inside Explorer or inside Glance. Windows loads `GlanceThumbs.dll` into its own thumbnail
+process, and the DLL only passes each file on to `glance-thumb.exe`, which draws one picture and exits; it runs
+with a time limit and a memory limit, so a bad file costs one picture and nothing else. To find out why a file
+has no picture, create an empty file `%LOCALAPPDATA%\Glance\thumbnails.log`: from then on one line is written to
+it per thumbnail, with the reason. To switch thumbnails off or on later, run the installer again with the box
+as you want it.
+
 ## Install
 
-Give people one file, `Glance.Setup.exe` from the [latest release](https://github.com/demodude4u/glance/releases/latest) (about 21 MB; built here as `dist\Glance Setup.exe`). Running it shows two boxes, both ticked:
+Give people one file, `Glance.Setup.exe` from the [latest release](https://github.com/demodude4u/glance/releases/latest) (about 23 MB; built here as `dist\Glance Setup.exe`). Running it shows three boxes, all ticked:
 
 - **Open model files with Glance**: double-clicking an STL, OBJ, 3MF, PLY, glTF (`.glb`, `.gltf`), STEP or IGES
   file opens it in Glance.
 - **Add "Open in Glance" to the right-click menu**: works whichever app is set to open the file. On Windows 11
   it is under **Show more options** (or Shift+right-click); the short menu only takes signed, packaged apps.
+- **Show pictures of models in File Explorer**: thumbnails, whichever app is set to open the file (see
+  Thumbnails in File Explorer above).
 
 It installs to `%LOCALAPPDATA%\Programs\Glance` for the current user only, with no administrator rights, adds a
 Start menu entry, and lists Glance under Settings > Apps > Installed apps, where it can be uninstalled.
@@ -147,7 +181,7 @@ The file is not code-signed, so Windows SmartScreen may ask for confirmation the
 Windows does not let any installer override a default the person has already chosen for a type. If the picker
 appears for a type, choose Glance there once and click **Always**.
 
-Unattended: `"Glance Setup.exe" --quiet [--no-associate] [--no-menu]`, and `Glance.exe --uninstall --quiet`.
+Unattended: `"Glance Setup.exe" --quiet [--no-associate] [--no-menu] [--no-thumbnails]`, and `Glance.exe --uninstall --quiet`.
 From this folder, `.\build.ps1` builds everything and `.\install.ps1` / `.\uninstall.ps1` run those two commands.
 
 ## Updates
@@ -162,7 +196,8 @@ An installed Glance keeps itself up to date from <https://github.com/demodude4u/
 3. When the update is ready the bar becomes an **Update** button. Pressing it closes Glance, installs the update
    and opens Glance again on the same file. If it is not pressed, the update goes in silently when the last
    Glance window is closed. Either way the choices made at install time are kept, and the next start shows
-   "Glance was updated to version X".
+   "Glance was updated to version X". (A copy installed before thumbnails existed was never asked about them:
+   it gets them with the update, as a new install would.)
 
 It never runs before the first picture is on screen, never closes a window on its own, and only applies to a copy put there by
 the installer (a build run from a folder leaves itself alone). To switch it off, add `autoUpdate=0` to
@@ -174,8 +209,10 @@ publish a release in the repository can publish an update.
 ## Releasing
 
 1. Set the new number in `src\Directory.Build.props` (the only place it lives) and add a section to `CHANGELOG.md`.
-2. Commit, then run `.\build.ps1` so the build carries that commit's id, and run the three test suites
-   (`tools\hidden_test.py`, `tools\hidden_setup.py`, `tools\hidden_update.py`).
+2. Commit, then run `.\build.ps1` so the build carries that commit's id, and run the four test suites
+   (`tools\hidden_test.py`, `tools\hidden_setup.py`, `tools\hidden_update.py`, `tools\hidden_thumbs.py`).
+   No test can make Explorer itself show a thumbnail: after a change to the thumbnail code or its registration,
+   install the build on a real desktop and look at a folder of models before publishing.
 3. Tag the commit `vX.Y.Z` and push the branch and the tag.
 4. Create a GitHub release for that tag and attach the two files in `dist\release`: `Glance.Setup.exe` and
    `version.txt`. Both names matter: installed copies fetch exactly those from the latest release, so an update
@@ -219,8 +256,11 @@ Not shipped: a software OpenGL fallback. Glance needs a graphics driver with Ope
 |---|---|
 | `src\Glance` | The viewer: C# compiled ahead-of-time to a 2 MB native exe. Hand-written Win32 window, OpenGL 3.3 renderer, HUD, and its own small parsers for STL, OBJ, 3MF, PLY and glTF (`Loaders*.cs`; each is only touched when a file of its type is opened). The graphics driver starts loading on its own thread the moment the process starts. |
 | `src\StepNative` | `glance-step.exe`: C++ on OpenCascade. Reads STEP/IGES, tessellates in parallel, writes a packed mesh. Runs as a separate process so a bad CAD file can never take the viewer down. |
+| `src\ThumbShell` | `GlanceThumbs.dll` (1 MB): the thumbnail handler Windows loads, C# compiled ahead-of-time to a native DLL with its COM objects laid out by hand. One class per file format, registered for the current user and left to run in Windows' own thumbnail process, never inside Explorer. It reads no model: it copies the stream Windows hands it into shared memory, starts the helper in a job (memory limit, time limit, dies with its parent) and turns the pixels that come back into a bitmap. |
+| `src\Thumb` | `glance-thumb.exe` (2.4 MB): draws one thumbnail and exits. The viewer's own readers and edge analysis, compiled in from `src\Glance`, and a small software rasterizer that repeats the viewer's default view and lighting (`Raster.cs`). No graphics driver and no window, so it gives the same picture on every PC. |
 | `tools\build_step.py` | Builds the reader and ships only the 25 OpenCascade DLLs it needs. The codec, font and VR libraries the official build imports but the reader never calls are replaced with tiny stand-in DLLs. |
 | `tools\hidden_test.py` | End-to-end test on a hidden desktop: opens every format, then drives one window with real mouse and keyboard messages and checks the result. |
+| `tools\hidden_thumbs.py` | Thumbnail test. A stand-in for Windows' thumbnail process (`tools\thumb_host.py`) loads the handler through its class factory and asks for pictures of every format at every size, of damaged and oversized files, and with a helper made to hang, crash or eat memory; saves every picture and prints the time each took. `tools\hidden_setup.py` adds the registered side: it asks the shell for the handler of a file and gets a picture through it. |
 | `tools\make_samples.py` | Writes the small sample models the tests open: STL, OBJ, 3MF, PLY and glTF files of known size. |
 
 Settings and the STEP cache live in `%LOCALAPPDATA%\Glance` (cache capped at 1 GB, oldest first).

@@ -164,7 +164,7 @@ internal static unsafe partial class Loaders
 
     static Mesh LoadStl(string path)
     {
-        byte[] d = File.ReadAllBytes(path);
+        byte[] d = ReadFile(path);
         uint n = d.Length >= 84 ? BitConverter.ToUInt32(d, 80) : 0;
         if (d.Length >= 84 && 84 + (long)n * 50 == d.Length) return BinaryStl(d, (int)n);
 
@@ -222,7 +222,7 @@ internal static unsafe partial class Loaders
 
     static Mesh LoadObj(string path)
     {
-        byte[] d = File.ReadAllBytes(path);
+        byte[] d = ReadFile(path);
         var v = new Buf<float>(d.Length / 30);
         var vn = new Buf<float>(1024);
         var cp = new Buf<int>(d.Length / 20);    // per corner: position index
@@ -463,6 +463,8 @@ internal static unsafe partial class Loaders
                 return msg.Length > 0 ? msg : "The geometry in this file couldn't be read.";
             }
             File.Move(tmp, cache, true);
+            // For the thumbnail helper (LoadersShared.cs). Its own thread, so it finishes even if Glance is closed at once.
+            new Thread(() => PublishShared(path, cache)) { Name = "share" }.Start();
             return null;
         }
         finally
@@ -487,6 +489,11 @@ internal static unsafe partial class Loaders
             }
             catch { try { File.Delete(cache); } catch { } }
         }
+
+        // Converted already under another name: by the thumbnail helper, or as a copy of this file somewhere else.
+        if (AdoptShared(path, cache))
+            try { Mesh hit = ReadGmesh(cache); hit.FromCache = true; hit.Units = "mm"; return hit; }
+            catch { try { File.Delete(cache); } catch { } }
 
         if (!File.Exists(Worker))
             throw new InvalidOperationException("STEP support isn't installed next to Glance (step\\glance-step.exe is missing).");

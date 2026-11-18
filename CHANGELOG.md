@@ -2,6 +2,29 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
+## Unreleased
+
+- **Pictures of models in File Explorer.** In Explorer's icon views, STL, OBJ, 3MF, PLY, glTF (`.glb`, `.gltf`),
+  STEP and IGES files show as a picture of the model instead of a plain icon: the view Glance opens with, in the
+  default material or the file's own colours, on a transparent background, at whatever size Explorer asks for.
+  The installer has a third box for it, ticked like the others (`--no-thumbnails` when unattended). It is set up
+  for the current user only, needs no administrator rights, and is removed by the uninstaller, which puts back
+  another app's thumbnails if Glance had taken their place. An update keeps the choice; a copy from before this
+  version, which was never asked, gets thumbnails with the update.
+- **Thumbnails cannot disturb Explorer or Glance.** Windows loads a small handler (`GlanceThumbs.dll`) into its
+  own thumbnail process, not into Explorer. The handler reads no model itself: it passes each file to a helper
+  (`glance-thumb.exe`) that draws one picture and exits, with 8 seconds and 1.5 GB at most (15 seconds for STEP and
+  IGES). A file that is damaged, too large or too slow keeps its ordinary icon. Nothing is added to Glance's own
+  start-up. The handler DLL can be replaced or removed while Windows still has it loaded.
+- **STEP and IGES conversions are shared between thumbnails and the viewer.** A converted file is now also kept
+  under a name made from its contents, so a file whose thumbnail has been drawn opens at once in Glance, a file
+  Glance has opened gets its thumbnail at once, and a copy of a file in another folder no longer needs converting
+  again.
+- Not covered: a `.gltf` whose data is in a separate `.bin` keeps its icon, and an `.obj` is drawn without the
+  colours from its `.mtl`, because Windows gives a thumbnail handler a file's bytes but not its location.
+- New test suite `tools\hidden_thumbs.py`; `tools\hidden_setup.py` and `tools\hidden_update.py` check the
+  registration through install, update and uninstall.
+
 ## 1.6.0 (2026-11-18)
 
 - **3MF files.** Glance opens `.3mf`: the mesh objects, placed by components and by the build's items with their

@@ -17,7 +17,7 @@ internal static unsafe class Program
                 {
                     case "--register":
                         if (args.Contains("--keep")) Registration.Reregister();          // an update: leave the person's choices as they are
-                        else Registration.Register(!args.Contains("--no-associate"), !args.Contains("--no-menu"));
+                        else Registration.Register(!args.Contains("--no-associate"), !args.Contains("--no-menu"), !args.Contains("--no-thumbnails"));
                         return 0;
                     case "--unregister": Registration.Unregister(); return 0;
                     case "--uninstall": Registration.Uninstall(args.Contains("--quiet")); return 0;

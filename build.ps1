@@ -14,6 +14,14 @@ if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 New-Item -ItemType Directory -Force $dist | Out-Null
 Copy-Item "$root\build\glance\Glance.exe" $dist
 
+# Explorer thumbnails: the handler DLL that Windows loads and the helper that draws each picture (see README).
+dotnet publish "$root\src\ThumbShell\ThumbShell.csproj" -c Release -o "$root\build\thumbshell" --nologo -v q
+if ($LASTEXITCODE -ne 0) { throw 'Thumbnail handler build failed' }
+dotnet publish "$root\src\Thumb\Thumb.csproj" -c Release -o "$root\build\thumb" --nologo -v q
+if ($LASTEXITCODE -ne 0) { throw 'Thumbnail helper build failed' }
+Copy-Item "$root\build\thumbshell\GlanceThumbs.dll" $dist
+Copy-Item "$root\build\thumb\glance-thumb.exe" $dist
+
 # Native STEP/IGES reader. OpenCascade (LGPL) is a build dependency; see README for where it comes from.
 $occt = Get-ChildItem "$root\build\deps\occt" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $occt) { throw "OpenCascade SDK not found under build\deps\occt (see README, Building)" }

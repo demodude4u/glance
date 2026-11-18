@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace GlanceSetup;
 
 /// <summary>
-/// One small window: two ticked boxes and an Install button. Unpacks Glance into the current user's
+/// One small window: three ticked boxes and an Install button. Unpacks Glance into the current user's
 /// Programs folder, asks Glance to register itself with the chosen options, and adds a Start menu entry.
 /// No administrator rights, nothing outside the user's own profile and registry.
 /// </summary>
@@ -71,10 +71,10 @@ internal static unsafe class Setup
     // Brand palette (COLORREF is 0x00BBGGRR)
     const uint Ivory = 0xF8F8F8, Charcoal = 0x333333, Slate = 0x908070, Cobalt = 0xAB4700, CobaltDown = 0x8A3900, Amber = 0x07C1FF, White = 0xFFFFFF, Mist = 0xD8D2CC;
 
-    const int IdAssociate = 101, IdMenu = 102, IdGo = 103;
+    const int IdAssociate = 101, IdMenu = 102, IdGo = 103, IdThumbnails = 104;
     const uint WM_DONE = 0x8000 + 1;
 
-    static nint _wnd, _associate, _menu, _go, _bg, _icon;
+    static nint _wnd, _associate, _menu, _thumbnails, _go, _bg, _icon;
     static nint _fTitle, _fText, _fSmall, _fButton;
     static float _s = 1;
     static int _state;                 // 0 ready, 1 working, 2 installed, 3 failed
@@ -93,9 +93,9 @@ internal static unsafe class Setup
         try
         {
             if (args.Contains("--update")) return Update(args);
-            if (args.Contains("--quiet"))        // unattended: no window, both options unless switched off
+            if (args.Contains("--quiet"))        // unattended: no window, every option unless switched off
             {
-                Install(!args.Contains("--no-associate"), !args.Contains("--no-menu"));
+                Install(!args.Contains("--no-associate"), !args.Contains("--no-menu"), !args.Contains("--no-thumbnails"));
                 return 0;
             }
             return Window();
@@ -151,7 +151,7 @@ internal static unsafe class Setup
             };
             RegisterClassExW(&wc);
 
-            var r = new RECT { r = D(500), b = D(352) };
+            var r = new RECT { r = D(500), b = D(416) };
             AdjustWindowRectExForDpi(&r, style, 0, 0, GetDpiForSystem());
             int w = r.r - r.l, h = r.b - r.t;
             _wnd = CreateWindowExW(0, cls, title, style, (GetSystemMetrics(0) - w) / 2, (GetSystemMetrics(1) - h) / 2, w, h, 0, 0, inst, 0);
@@ -161,10 +161,12 @@ internal static unsafe class Setup
                 _associate = CreateWindowExW(0, button, t, check | 0x00020000, D(32), D(112), D(436), D(24), _wnd, IdAssociate, inst, 0);
             fixed (char* t = "Add “Open in Glance” to the right-click menu")
                 _menu = CreateWindowExW(0, button, t, check, D(32), D(176), D(436), D(24), _wnd, IdMenu, inst, 0);
+            fixed (char* t = "Show pictures of models in File Explorer")
+                _thumbnails = CreateWindowExW(0, button, t, check, D(32), D(240), D(436), D(24), _wnd, IdThumbnails, inst, 0);
             fixed (char* t = "Install")
-                _go = CreateWindowExW(0, button, t, 0x5001000B, D(336), D(288), D(132), D(36), _wnd, IdGo, inst, 0);   // owner drawn
+                _go = CreateWindowExW(0, button, t, 0x5001000B, D(336), D(352), D(132), D(36), _wnd, IdGo, inst, 0);   // owner drawn
         }
-        foreach (nint c in (nint[])[_associate, _menu])
+        foreach (nint c in (nint[])[_associate, _menu, _thumbnails])
         {
             SendMessageW(c, 0x0030, (nuint)_fText, 1);      // WM_SETFONT
             SendMessageW(c, 0x00F1, 1, 0);                  // BM_SETCHECK: ticked by default
@@ -224,6 +226,7 @@ internal static unsafe class Setup
 
         Label(dc, "Double-click an STL, OBJ, 3MF, PLY, glTF, STEP or IGES file to open it.", _fSmall, Slate, 51, 138, 420, 20);
         Label(dc, "Works whichever app is set to open the file.", _fSmall, Slate, 51, 202, 420, 20);
+        Label(dc, "Each model shows as a small picture of itself instead of a plain icon.", _fSmall, Slate, 51, 266, 420, 20);
 
         (string text, uint color) = _state switch
         {
@@ -235,10 +238,10 @@ internal static unsafe class Setup
         if (_state == 2 || _state == 3)
         {
             nint dot = CreateSolidBrush(_state == 2 ? Cobalt : Amber);
-            var d = new RECT { l = D(32), t = D(249), r = D(35), b = D(249 + (_state == 3 ? 34 : 17)) };
+            var d = new RECT { l = D(32), t = D(313), r = D(35), b = D(313 + (_state == 3 ? 34 : 17)) };
             FillRect(dc, &d, dot); DeleteObject(dot);
         }
-        Label(dc, text, _fSmall, color, _state >= 2 ? 44 : 32, 248, 280, 36);
+        Label(dc, text, _fSmall, color, _state >= 2 ? 44 : 32, 312, 280, 36);
         EndPaint(h, &ps);
     }
 
@@ -271,12 +274,13 @@ internal static unsafe class Setup
         if (_state >= 2) { DestroyWindow(_wnd); return; }
         if (_state == 1) return;
         bool associate = SendMessageW(_associate, 0x00F0, 0, 0) == 1, menu = SendMessageW(_menu, 0x00F0, 0, 0) == 1;   // BM_GETCHECK
+        bool thumbnails = SendMessageW(_thumbnails, 0x00F0, 0, 0) == 1;
         _state = 1;
-        EnableWindow(_associate, 0); EnableWindow(_menu, 0); EnableWindow(_go, 0);
+        EnableWindow(_associate, 0); EnableWindow(_menu, 0); EnableWindow(_thumbnails, 0); EnableWindow(_go, 0);
         SetText(_go, "Installing…"); InvalidateRect(_wnd, null, 1);
         new Thread(() =>
         {
-            try { Install(associate, menu); }
+            try { Install(associate, menu, thumbnails); }
             catch (Exception ex) { _error = ex.Message; }
             PostMessageW(_wnd, WM_DONE, 0, 0);
         }) { IsBackground = true }.Start();
@@ -342,7 +346,7 @@ internal static unsafe class Setup
             Log("Glance is still open; will try again next time (waited for " + string.Join(" ", args) + "; saw" + who + ")");
             return 2;
         }
-        try { Install(true, true, keep: true); }
+        try { Install(true, true, true, keep: true); }
         catch (Exception ex) { Log("update failed: " + ex.Message); throw; }
         Log("updated to " + Glance.AppVersion.Number);
         return 0;
@@ -354,7 +358,7 @@ internal static unsafe class Setup
         try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "update.log"), $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  Setup {Glance.AppVersion.Number}: {what}\r\n"); } catch { }
     }
 
-    static void Install(bool associate, bool menu, bool keep = false)
+    static void Install(bool associate, bool menu, bool thumbnails, bool keep = false)
     {
         string dir = Target;
 
@@ -363,6 +367,10 @@ internal static unsafe class Setup
         foreach (string name in (string[])["Glance", "glance-step"])
             foreach (var p in Process.GetProcessesByName(name))
                 try { if (p.MainModule!.FileName.StartsWith(dir + "\\", StringComparison.OrdinalIgnoreCase)) { p.Kill(); p.WaitForExit(3000); } } catch { }
+
+        // Explorer's thumbnail process may have the handler DLL loaded, and a thumbnail may be being drawn right now.
+        // Neither is a reason to fail or to wait: see ThumbFiles.
+        if (Directory.Exists(dir)) Glance.ThumbFiles.Free(dir);
 
         for (int attempt = 0; Directory.Exists(dir); attempt++)
         {
@@ -381,6 +389,7 @@ internal static unsafe class Setup
         {
             if (!associate) reg.ArgumentList.Add("--no-associate");
             if (!menu) reg.ArgumentList.Add("--no-menu");
+            if (!thumbnails) reg.ArgumentList.Add("--no-thumbnails");
         }
         using (var p = Process.Start(reg)!)
         {

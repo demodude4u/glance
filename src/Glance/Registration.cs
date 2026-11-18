@@ -20,8 +20,9 @@ internal static class Registration
 
     /// <param name="associate">Make Glance the app that opens these types on double-click.</param>
     /// <param name="menu">Add a right-click "Open in Glance" entry.</param>
-    /// Glance is always listed under "Open with", whatever the two options say.
-    public static void Register(bool associate = true, bool menu = true)
+    /// <param name="thumbnails">Show pictures of the models in File Explorer (RegistrationThumbs.cs).</param>
+    /// Glance is always listed under "Open with", whatever the options say.
+    public static void Register(bool associate = true, bool menu = true, bool thumbnails = true)
     {
         string exe = Environment.ProcessPath!;
         string command = $"\"{exe}\" \"%1\"";
@@ -75,8 +76,10 @@ internal static class Registration
         using (var k = Registry.CurrentUser.CreateSubKey(@"Software\RegisteredApplications"))
             k.SetValue("Glance", @"Software\Glance\Capabilities");
 
-        // Settings > Apps > Installed apps
         string dir = Path.GetDirectoryName(exe)!;
+        ThumbnailRegistration.Set(thumbnails, dir);
+
+        // Settings > Apps > Installed apps
         using (var k = Registry.CurrentUser.CreateSubKey(UninstallKey))
         {
             k.SetValue("DisplayName", "Glance");
@@ -109,7 +112,7 @@ internal static class Registration
             using (var k = Registry.CurrentUser.OpenSubKey(MenuKey(ext)))
                 if (k != null) menu = true;
         }
-        Register(associate, menu);
+        Register(associate, menu, ThumbnailRegistration.Chosen);
     }
 
     /// A saved "open with" choice that points at an app which is no longer installed makes Explorer ignore the
@@ -130,6 +133,7 @@ internal static class Registration
 
     public static void Unregister()
     {
+        ThumbnailRegistration.Remove();
         foreach (var (ext, _) in Types)
         {
             Registry.CurrentUser.DeleteSubKeyTree(Classes + ProgId(ext), false);
@@ -156,7 +160,7 @@ internal static class Registration
             fixed (char* t = "Remove Glance from this PC?") fixed (char* c = "Glance")
                 if (Win32.MessageBoxW(0, t, c, 0x24) != 6) return;          // question, Yes/No
 
-        foreach (string name in (string[])["Glance", "glance-step"])
+        foreach (string name in (string[])["Glance", "glance-step", ThumbTypes.HelperProcess])
             foreach (var p in Process.GetProcessesByName(name))
                 try { if (p.Id != Environment.ProcessId && p.MainModule!.FileName.StartsWith(dir, StringComparison.OrdinalIgnoreCase)) p.Kill(); } catch { }
 
@@ -167,6 +171,8 @@ internal static class Registration
                             && Path.GetFileName(dir.TrimEnd('\\')).Equals("Glance", StringComparison.OrdinalIgnoreCase);
 
         Unregister();
+        // Windows may still have the thumbnail handler loaded; it is moved out of the folder so the folder can go.
+        string? held = removeFolder ? ThumbFiles.Free(dir) : null;
         string lnk = Environment.GetEnvironmentVariable("GLANCE_SETUP_LNK")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Glance.lnk");
         try { File.Delete(lnk); } catch { }
@@ -178,7 +184,7 @@ internal static class Registration
 
         // A running program cannot delete its own file: a windowless helper does it a moment after we exit.
         if (removeFolder)
-            Process.Start(new ProcessStartInfo("cmd.exe", $"/c ping -n 3 127.0.0.1 >nul & rmdir /s /q \"{dir}\"")
+            Process.Start(new ProcessStartInfo("cmd.exe", $"/c ping -n 3 127.0.0.1 >nul & rmdir /s /q \"{dir}\"" + (held != null ? $" & del /f /q \"{held}\"" : ""))
             { CreateNoWindow = true, UseShellExecute = false, WorkingDirectory = Path.GetTempPath() });
     }
 }

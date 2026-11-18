@@ -140,7 +140,7 @@ internal static unsafe partial class Loaders
 
     static Mesh ReadGltf(string path)
     {
-        byte[] d = File.ReadAllBytes(path);
+        byte[] d = ReadFile(path);
         int start = 0, end = d.Length;
         ArraySegment<byte> bin = default;
         if (d.Length >= 12 && BitConverter.ToUInt32(d, 0) == 0x46546C67)                  // "glTF": the binary container

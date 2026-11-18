@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- glance-thumb.exe: draws one thumbnail and exits. Started by the Explorer thumbnail handler (src\ThumbShell),
+       never by Glance.exe, so nothing here can touch the viewer's start-up. No window, no console. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AssemblyName>glance-thumb</AssemblyName>
+    <RootNamespace>Glance</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Product>Glance</Product>
+    <Description>Glance thumbnail helper</Description>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <PublishAot>true</PublishAot>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+    <DebugType>none</DebugType>
+    <NoWarn>$(NoWarn);CS0649</NoWarn>      <!-- fields of the viewer's mesh that only its measuring tools fill in -->
+  </PropertyGroup>
+
+  <!-- The viewer's own readers and mesh analysis, compiled in as they are. -->
+  <ItemGroup>
+    <Compile Include="..\Glance\Loaders.cs" Link="Viewer\Loaders.cs" />
+    <Compile Include="..\Glance\LoadersShared.cs" Link="Viewer\LoadersShared.cs" />
+    <Compile Include="..\Glance\Loaders3mf.cs" Link="Viewer\Loaders3mf.cs" />
+    <Compile Include="..\Glance\LoadersPly.cs" Link="Viewer\LoadersPly.cs" />
+    <Compile Include="..\Glance\LoadersGltf.cs" Link="Viewer\LoadersGltf.cs" />
+    <Compile Include="..\Glance\Mesh.cs" Link="Viewer\Mesh.cs" />
+    <Compile Include="..\Glance\Analysis.cs" Link="Viewer\Analysis.cs" />
+    <Compile Include="..\Shared\ThumbTypes.cs" Link="Shared\ThumbTypes.cs" />
+  </ItemGroup>
+
+</Project>
