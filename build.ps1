@@ -43,12 +43,14 @@ if ($LASTEXITCODE -ne 0) { throw 'Setup build failed' }
 Copy-Item "$root\build\setup\Glance Setup.exe" "$root\dist\Glance Setup.exe" -Force
 $version = ([xml](Get-Content "$root\src\Directory.Build.props")).Project.PropertyGroup.Version
 
-# What a GitHub release must carry for installed copies to update themselves (see README, Releasing):
-# the installer under a name without spaces, and version.txt = the version and the installer's SHA-256.
+# What a GitHub release must carry (see README, Releasing): the installer under the fixed name installed copies
+# fetch, the same installer under a name carrying the version for people to download by hand, and
+# version.txt = the version and the installer's SHA-256.
 $release = "$root\dist\release"
 if (Test-Path $release) { Remove-Item $release -Recurse -Force }
 New-Item -ItemType Directory -Force $release | Out-Null
 Copy-Item "$root\dist\Glance Setup.exe" "$release\Glance.Setup.exe"
+Copy-Item "$release\Glance.Setup.exe" "$release\Glance-$version-Setup.exe"    # the same bytes, so one SHA-256 covers both
 $hash = (Get-FileHash "$release\Glance.Setup.exe" -Algorithm SHA256).Hash
 [IO.File]::WriteAllText("$release\version.txt", "$version`n$hash`n")
 "Built $root\dist\Glance Setup.exe  version $version  ({0:N1} MB)" -f ((Get-Item "$root\dist\Glance Setup.exe").Length / 1MB)

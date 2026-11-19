@@ -242,7 +242,7 @@ as you want it.
 
 ## Install
 
-Give people one file, `Glance.Setup.exe` from the [latest release](https://github.com/demodude4u/glance/releases/latest) (about 23 MB; built here as `dist\Glance Setup.exe`). Running it shows three boxes, all ticked:
+Give people one file, `Glance-<version>-Setup.exe` from the [latest release](https://github.com/demodude4u/glance/releases/latest) (about 23 MB; built here as `dist\Glance Setup.exe`). The same installer is attached again as `Glance.Setup.exe`, the fixed name installed copies fetch for themselves, so either file works. Running it shows three boxes, all ticked:
 
 - **Open model files with Glance**: double-clicking an STL, OBJ, 3MF, PLY, glTF (`.glb`, `.gltf`), STEP or IGES
   file opens it in Glance.
@@ -291,9 +291,13 @@ publish a release in the repository can publish an update.
    No test can make Explorer itself show a thumbnail: after a change to the thumbnail code or its registration,
    install the build on a real desktop and look at a folder of models before publishing.
 3. Tag the commit `vX.Y.Z` and push the branch and the tag.
-4. Create a GitHub release for that tag and attach the two files in `dist\release`: `Glance.Setup.exe` and
-   `version.txt`. Both names matter: installed copies fetch exactly those from the latest release, so an update
-   goes out to everyone the moment the release is published. Mark a release as a pre-release to hold it back.
+4. Create a GitHub release for that tag and attach the three files in `dist\release`: `Glance-X.Y.Z-Setup.exe`,
+   which is the one the notes tell people to download, and `Glance.Setup.exe` and `version.txt`, which are the
+   two installed copies fetch from the latest release. An update goes out to everyone the moment the release is
+   published; mark a release as a pre-release to hold it back.
+   `Glance.Setup.exe` and `version.txt` must keep those exact names in every release, for good. Renaming either
+   leaves every copy already out there asking for a file that is not there, and because a failed check is
+   swallowed and retried next time, they would simply stop updating with nothing said.
 
 The version shows in Glance's title bar, in the help card (F1) as "Version 1.5.0 (commit)", in the installer's title bar, in the file
 properties of both programs and under Settings > Apps > Installed apps. Use the third number for fixes, the second

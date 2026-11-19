@@ -2,6 +2,12 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
+## Unreleased
+
+- The installer on the release page now carries its version in the name, `Glance-X.Y.Z-Setup.exe`, so a copy
+  kept after downloading says which version it is. The same file is attached as `Glance.Setup.exe` too: that is
+  the name an installed Glance fetches when it updates itself, and it never changes.
+
 ## 1.7.0 (2026-11-19)
 
 - **Reload when the file changes.** Save the file again from your CAD program and the open window shows the new
