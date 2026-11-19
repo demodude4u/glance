@@ -2,7 +2,7 @@
 
 The version number lives in `src\Directory.Build.props`. Each release is tagged `vX.Y.Z` in git.
 
-## Unreleased
+## 1.7.0 (2026-11-19)
 
 - **Reload when the file changes.** Save the file again from your CAD program and the open window shows the new
   version, keeping the view, the section cut and the shading. A file caught half-written leaves the model on
